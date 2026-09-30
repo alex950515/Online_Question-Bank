@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雲端題庫檢索與圖片對錯比對系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        skyblue: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#082f49',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK (v9 模組化 CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
+        window.initFirebase = function(config) {
+            try {
+                const app = initializeApp(config);
+                window.db = getDatabase(app);
+                return true;
+            } catch (err) {
+                console.error("Firebase 配置失敗:", err);
+                return false;
+            }
+        };
+
+        window.firebaseSyncToCloud = async function(path) {
+            if (!window.db) throw new Error("Firebase 未初始化");
+            const dbRef = ref(window.db, path);
+            await set(dbRef, window.questionBank);
+        };
+
+        window.firebaseFetchFromCloud = async function(path) {
+            if (!window.db) throw new Error("Firebase 未初始化");
+            const dbRef = ref(window.db, path);
+            const snapshot = await get(dbRef);
+            if (snapshot.exists()) {
+                return snapshot.val();
+            } else {
+                throw new Error("雲端尚無資料");
+            }
+        };
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+        .highlight { 
+            background-color: #fef08a; 
+            color: #854d0e;
+            font-weight: 600; 
+            padding: 0 4px; 
+            border-radius: 4px; 
+            box-shadow: 0 1px 2px rgba(250, 204, 21, 0.2);
+        }
+
+        .dark .highlight {
+            background-color: #854d0e;
+            color: #fef08a;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: scale(0.96) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .animate-modal {
+            animation: modalSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes toastFade {
+            0% { opacity: 0; transform: translateY(-16px) scale(0.95); }
+            15% { opacity: 1; transform: translateY(0) scale(1); }
+            85% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-12px) scale(0.95); }
+        }
+
+        .animate-toast {
+            animation: toastFade 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 滾動條美化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="bg-slate-100/70 dark:bg-slate-950 min-h-screen text-slate-700 dark:text-slate-200 font-sans antialiased selection:bg-sky-300 selection:text-sky-950 transition-colors duration-200">
+
+    <!-- 頂部導覽列 (天空藍風格) -->
+    <header class="bg-gradient-to-r from-sky-950 via-slate-900 to-sky-900 text-white shadow-md sticky top-0 z-40 border-b border-sky-800/40 backdrop-blur-md">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-xl bg-sky-400/20 border border-sky-400/40 flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-book-bookmark text-sky-300 text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold tracking-wide text-sky-50 flex items-center gap-2">
+                        雲端題庫檢索系統
+                    </h1>
+                    <p class="text-[10px] text-sky-200/80 font-medium hidden sm:block">多層類別 · 文字對錯比對 · 天空藍主題</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2.5">
+                <!-- 深色 / 淺色模式切換按鈕 -->
+                <button id="themeToggleBtn" onclick="toggleDarkMode()" class="px-3 py-1.5 rounded-xl bg-sky-900/60 hover:bg-sky-800/80 text-sky-200 border border-sky-600/40 transition flex items-center gap-1.5 text-xs font-semibold shadow-sm" title="切換深淺模式">
+                    <i id="themeToggleIcon" class="fa-solid fa-moon text-sky-300"></i>
+                    <span id="themeToggleText" class="hidden sm:inline">深色模式</span>
+                </button>
+
+                <span class="inline-flex items-center gap-1.5 bg-sky-950/80 text-sky-100 text-xs px-3 py-1.5 rounded-full font-medium border border-sky-600/40 shadow-sm backdrop-blur-sm">
+                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                    <span id="questionCountBadge">0 題</span>
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- 左側控制面板 -->
+        <section class="lg:col-span-1 space-y-5">
+            
+            <!-- 1. 題庫匯入面板 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-4">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-file-arrow-up text-sky-500 dark:text-sky-400"></i> 題庫匯入
+                    </h2>
+                    <span class="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-md font-semibold border border-sky-100 dark:border-sky-800/50">智能文字解析</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別名稱</label>
+                        <input type="text" id="categoryNameInput" value="作業系統" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="如：作業系統">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別名稱 (選填)</label>
+                        <input type="text" id="subCategoryNameInput" value="第一章 緒論" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="如：第一章/章節">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">貼上純文字題目 (支援測驗成績萃取與對錯判讀)</label>
+                    <textarea id="importTextarea" rows="6" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="題目：what is the name circled in this figure[__1__]? 
+你的答案：
+kernel
+正確答案：
+kernel
+得分：1 / 1
+
+題目：哪個是提供給 Windows 系統最常見的 API？
+你的答案：
+Win32 API
+正確答案：
+Win32 API
+得分：1 / 1"></textarea>
+                </div>
+
+                <div class="flex flex-wrap gap-2 pt-1">
+                    <button onclick="parseAndImportText()" class="flex-1 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-600 hover:to-sky-500 text-slate-950 text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-plus text-sky-950"></i> 智能解析與匯入
+                    </button>
+                    <button onclick="removeDuplicateQuestions()" class="bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/50 text-xs py-2 px-2.5 rounded-xl font-medium transition flex items-center gap-1" title="一鍵清理重複題目">
+                        <i class="fa-solid fa-broom"></i> 清理重複
+                    </button>
+                    <button onclick="clearDatabase()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition">
+                        清空
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 分類篩選與管理 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <i class="fa-solid fa-tags text-sky-500 dark:text-sky-400"></i> 分類階層篩選
+                </h2>
+                <!-- 母類別容器 -->
+                <div>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">母類別 (Parent)</p>
+                    <div id="categoryList" class="flex flex-wrap gap-1.5">
+                        <!-- 母類別動態渲染 -->
+                    </div>
+                </div>
+                <!-- 子類別容器 -->
+                <div id="subCategorySection" class="hidden pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">子類別 (Subcategory)</p>
+                    <div id="subCategoryList" class="flex flex-wrap gap-1.5">
+                        <!-- 子類別動態渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 備份與 Firebase 雲端整合面板 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-sky-500 dark:text-sky-400"></i> 備份與雲端同步
+                </h2>
+
+                <!-- 本地 JSON 備份功能 -->
+                <div class="grid grid-cols-2 gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <button onclick="exportJSON()" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 py-1.5 px-2 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-download text-slate-500 dark:text-slate-400"></i> 匯出 JSON
+                    </button>
+                    <label class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 py-1.5 px-2 rounded-xl text-xs font-medium cursor-pointer transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-upload text-slate-500 dark:text-slate-400"></i> 匯入 JSON
+                        <input type="file" id="jsonFileInput" accept=".json" class="hidden" onchange="importJSONFile(event)">
+                    </label>
+                </div>
+
+                <!-- Firebase 設定區域 -->
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                            <i class="fa-solid fa-fire text-amber-500"></i> Firebase 專案
+                        </span>
+                        <span id="firebaseStatus" class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold">
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 未連接
+                        </span>
+                    </div>
+
+                    <textarea id="firebaseConfigInput" rows="2" class="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-[11px] font-mono focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder='貼上 config 物件, 例如:
+{"apiKey": "...", "databaseURL": "..."}'></textarea>
+
+                    <div class="flex gap-2">
+                        <button onclick="setupFirebase()" class="bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs w-full font-semibold shadow-sm transition">
+                            初始化與連接
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="uploadToFirebase()" class="bg-sky-600 dark:bg-sky-700 hover:bg-sky-700 dark:hover:bg-sky-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> 推送雲端
+                        </button>
+                        <button onclick="downloadFromFirebase()" class="bg-teal-600 dark:bg-teal-700 hover:bg-teal-700 dark:hover:bg-teal-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> 拉取雲端
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 右側檢索面板 -->
+        <section class="lg:col-span-2 space-y-5">
+
+            <!-- 搜尋框區域 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500 text-sm"></i>
+                    <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
+                </div>
+
+                <div class="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 px-1">
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                            <input type="radio" name="searchMode" value="include" checked onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 關鍵字包含
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                            <input type="radio" name="searchMode" value="exact" onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 精確比對
+                        </label>
+                    </div>
+                    <span id="searchResultCount" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
+                </div>
+            </div>
+
+            <!-- 結果清單 -->
+            <div id="resultsContainer" class="space-y-4">
+                <!-- 動態呈現 -->
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 題目圖片編輯 Modal 彈窗 -->
+    <div id="imageModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeImageModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-regular fa-image text-sky-500 dark:text-sky-400"></i> 編輯題目圖片
+                </h3>
+                <button onclick="closeImageModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
+            </div>
+
+            <div class="space-y-3">
+                <div id="modalPasteArea" tabindex="0" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-50/80 dark:bg-slate-800/50 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-400/30">
+                    <i class="fa-regular fa-clipboard text-3xl text-sky-500 dark:text-sky-400 mb-2"></i>
+                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">點擊此處並按下 <kbd class="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md text-[11px] font-mono shadow-sm">Ctrl + V</kbd> 貼上圖片</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">或使用下方選擇檔案按鈕上傳</p>
+                </div>
+
+                <div class="flex justify-center">
+                    <label class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs px-3.5 py-2 rounded-xl font-semibold cursor-pointer transition flex items-center gap-2">
+                        <i class="fa-solid fa-folder-open text-sky-500 dark:text-sky-400"></i> 從電腦選擇圖片
+                        <input type="file" id="modalImageFileInput" accept="image/*" class="hidden">
+                    </label>
+                </div>
+
+                <div id="modalImagePreviewContainer" class="hidden space-y-1">
+                    <p class="text-xs font-medium text-slate-500 dark:text-slate-400">預覽：</p>
+                    <div class="relative max-h-48 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-2">
+                        <img id="modalImagePreview" src="" alt="預覽圖片" class="max-h-44 object-contain rounded-lg">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="saveQuestionImage()" class="flex-1 bg-sky-400 hover:bg-sky-500 text-slate-950 text-xs py-2.5 rounded-xl font-bold shadow-sm transition">
+                    儲存圖片
+                </button>
+                <button onclick="removeQuestionImage()" class="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs px-3.5 py-2.5 rounded-xl font-semibold transition">
+                    刪除圖片
+                </button>
+                <button onclick="closeImageModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-3.5 py-2.5 rounded-xl font-semibold transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片大圖檢視 Modal 彈窗 (本頁內放大) -->
+    <div id="viewImageModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-[60] p-4 cursor-zoom-out" onclick="closeViewImageModal()">
+        <div class="relative max-w-4xl max-h-[90vh] w-full p-3 bg-white/10 dark:bg-slate-900/40 rounded-3xl backdrop-blur-xl border border-white/20 dark:border-slate-700/50 flex flex-col items-center shadow-2xl cursor-default animate-modal" onclick="event.stopPropagation()">
+            <button onclick="closeViewImageModal()" class="absolute -top-3 -right-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-rose-600 rounded-full w-9 h-9 flex items-center justify-center text-xl font-bold shadow-xl transition">×</button>
+            <div class="overflow-auto max-h-[82vh] w-full flex items-center justify-center p-2">
+                <img id="fullImageView" src="" class="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-lg">
+            </div>
+        </div>
+    </div>
+
+    <!-- 題目文字內文編輯 Modal 彈窗 -->
+    <div id="editQuestionModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeEditModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-regular fa-pen-to-square text-amber-600 dark:text-amber-400"></i> 編輯題目內文與答案
+                </h3>
+                <button onclick="closeEditModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
+            </div>
+
+            <div class="space-y-3.5 text-xs">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">母類別</label>
+                        <input type="text" id="editCategoryInput" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">子類別</label>
+                        <input type="text" id="editSubCategoryInput" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="無子類別可留空">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">題目內容 (題幹)</label>
+                    <textarea id="editQuestionInput" rows="4" class="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none font-mono leading-relaxed transition"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-slate-600 dark:text-slate-300 mb-1 font-semibold">正確答案 (若有多個答案請分行輸入)</label>
+                    <textarea id="editAnswersInput" rows="3" class="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none font-mono leading-relaxed transition"></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="saveQuestionText()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs py-2.5 rounded-xl font-semibold shadow-sm transition">
+                    儲存修改
+                </button>
+                <button onclick="closeEditModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-4 py-2.5 rounded-xl font-semibold transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知與 Confirm 視窗容器 -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="customConfirmModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-[70] p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-modal">
+            <div class="flex items-center gap-3">
+                <div id="confirmIconContainer" class="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <h4 id="confirmTitle" class="text-sm font-bold text-slate-800 dark:text-slate-100">確認操作</h4>
+                    <p id="confirmMessage" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed"></p>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-1 justify-end">
+                <button id="confirmCancelBtn" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-3.5 py-2 rounded-xl font-semibold transition">取消</button>
+                <button id="confirmOkBtn" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-xl font-semibold shadow-sm transition">確定刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局題庫變數
+        window.questionBank = JSON.parse(localStorage.getItem('cloud_question_bank_v6')) || [
+            {
+                id: 'q_1',
+                type: '一般題',
+                category: '作業系統',
+                subcategory: '第一章 緒論',
+                question: 'what is the name circled in this figure[__1__]?',
+                answers: ['kernel'],
+                image: ''
+            },
+            {
+                id: 'q_2',
+                type: '一般題',
+                category: '作業系統',
+                subcategory: '第二章 API結構',
+                question: '哪個是提供給 Windows 系統最常見的 API？',
+                answers: ['Win32 API'],
+                image: ''
+            }
+        ];
+
+        let selectedCategory = 'ALL';
+        let selectedSubCategory = 'ALL';
+        let currentEditingQuestionId = null;
+        let currentEditingTextQuestionId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            saveAndRefresh();
+            
+            // 自動嘗試載入先前儲存的 Firebase 配置
+            const savedConfig = localStorage.getItem('firebase_config_cache');
+            if (savedConfig) {
+                document.getElementById('firebaseConfigInput').value = savedConfig;
+                setupFirebase(true);
+            }
+
+            // 綁定 modal 圖片檔案切換與剪貼簿貼上觸發預覽
+            const fileInput = document.getElementById('modalImageFileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileSelect);
+            }
+
+            const pasteArea = document.getElementById('modalPasteArea');
+            if (pasteArea) {
+                pasteArea.addEventListener('paste', handlePasteEvent);
+                pasteArea.addEventListener('click', function() {
+                    this.focus();
+                });
+            }
+
+            // 按下 Esc 鍵關閉所有 Modal
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeEditModal();
+                    closeImageModal();
+                    closeViewImageModal();
+                }
+            });
+        });
+
+        // ===== 主題切換邏輯 =====
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            updateThemeUI();
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeUI();
+            showToast(isDark ? '已切換至深色模式' : '已切換至淺色模式', 'info');
+        }
+
+        function updateThemeUI() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const icon = document.getElementById('themeToggleIcon');
+            const text = document.getElementById('themeToggleText');
+            if (icon && text) {
+                if (isDark) {
+                    icon.className = 'fa-solid fa-sun text-amber-300';
+                    text.innerText = '淺色模式';
+                } else {
+                    icon.className = 'fa-solid fa-moon text-sky-300';
+                    text.innerText = '深色模式';
+                }
+            }
+        }
+
+        // UI 友善提示
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border text-xs font-semibold animate-toast backdrop-blur-md ${
+                type === 'error' ? 'bg-rose-900/90 border-rose-700 text-rose-100' :
+                type === 'success' ? 'bg-emerald-900/90 border-emerald-700 text-emerald-100' :
+                'bg-slate-900/90 dark:bg-slate-800/95 border-slate-700 text-slate-100'
+            }`;
+
+            const icon = type === 'error' ? 'fa-circle-xmark' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${msg.replace(/\n/g, '<br>')}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function showConfirm(title, message, onOk) {
+            const modal = document.getElementById('customConfirmModal');
+            document.getElementById('confirmTitle').innerText = title;
+            document.getElementById('confirmMessage').innerText = message;
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            okBtn.onclick = () => {
+                cleanup();
+                if (onOk) onOk();
+            };
+            cancelBtn.onclick = () => cleanup();
+        }
+
+        // 儲存與重新整理
+        function saveAndRefresh() {
+            localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
+            document.getElementById('questionCountBadge').innerText = `${window.questionBank.length} 題`;
+            renderCategories();
+            performSearch();
+        }
+
+        /**
+         * 專用測驗成績過濾解析演算法（支援母子類別）
+         */
+        function parseAndImportText() {
+            const rawText = document.getElementById('importTextarea').value.trim();
+            const category = document.getElementById('categoryNameInput').value.trim() || '未分類';
+            const subcategory = document.getElementById('subCategoryNameInput').value.trim() || '';
+
+            if (!rawText) {
+                showToast('請先輸入題目內容！', 'error');
+                return;
+            }
+
+            const lines = rawText.split('\n');
+            const parsedQuestions = [];
+            
+            let currentQuestion = null;
+            let currentMode = 'NONE';
+
+            const ignoreRegex = /^(你的答案[：:]|得分[：:]|\d+\s*\/\s*\d+)/i;
+            const newQuestionHeaderRegex = /^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)/i;
+
+            function finalizeCurrentQuestion() {
+                if (!currentQuestion) return;
+
+                currentQuestion.question = currentQuestion.question.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
+                
+                currentQuestion.answers = currentQuestion.answers
+                    .map(a => a.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim())
+                    .filter(a => a.length > 0);
+
+                if (currentQuestion.question) {
+                    if (currentQuestion.answers.length === 0) {
+                        currentQuestion.answers = ['(未提供正確答案)'];
+                    }
+                    parsedQuestions.push(currentQuestion);
+                }
+                currentQuestion = null;
+                currentMode = 'NONE';
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                if (ignoreRegex.test(line)) {
+                    currentMode = 'NONE';
+                    continue;
+                }
+
+                const isNewQuestionHeader = newQuestionHeaderRegex.test(line);
+
+                if (isNewQuestionHeader) {
+                    if (currentQuestion) {
+                        finalizeCurrentQuestion();
+                    }
+
+                    currentQuestion = {
+                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                        type: '一般題',
+                        category: category,
+                        subcategory: subcategory,
+                        question: line,
+                        answers: [],
+                        image: ''
+                    };
+                    currentMode = 'QUESTION';
+                    continue;
+                }
+
+                if (!currentQuestion) {
+                    currentQuestion = {
+                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                        type: '一般題',
+                        category: category,
+                        subcategory: subcategory,
+                        question: line,
+                        answers: [],
+                        image: ''
+                    };
+                    currentMode = 'QUESTION';
+                    continue;
+                }
+
+                if (/^(正確答案[：:])/i.test(line)) {
+                    currentMode = 'CORRECT_ANSWER';
+                    const inlineAns = line.replace(/^(正確答案[：:])\s*/i, '').trim();
+                    if (inlineAns) {
+                        currentQuestion.answers.push(inlineAns);
+                    }
+                    continue;
+                }
+
+                if (currentMode === 'CORRECT_ANSWER') {
+                    currentQuestion.answers.push(line);
+                } else if (currentMode === 'QUESTION') {
+                    currentQuestion.answers.push(line);
+                }
+            }
+
+            finalizeCurrentQuestion();
+
+            if (parsedQuestions.length === 0) {
+                showToast('解析失敗：未偵測到有效題目。請確認包含「題目：」', 'error');
+                return;
+            }
+
+            // 比對重複題目剔除
+            let newAddedCount = 0;
+            let duplicateCount = 0;
+
+            parsedQuestions.forEach(newQ => {
+                const isDuplicate = window.questionBank.some(existQ => {
+                    const sameQ = existQ.question.trim().toLowerCase() === newQ.question.trim().toLowerCase();
+                    const sameA = JSON.stringify((existQ.answers||[]).map(a => a.trim().toLowerCase())) === 
+                                  JSON.stringify((newQ.answers||[]).map(a => a.trim().toLowerCase()));
+                    return sameQ && sameA;
+                });
+
+                if (isDuplicate) {
+                    duplicateCount++;
+                } else {
+                    window.questionBank.push(newQ);
+                    newAddedCount++;
+                }
+            });
+
+            document.getElementById('importTextarea').value = '';
+            saveAndRefresh();
+
+            showToast(`成功新增 ${newAddedCount} 題 (剔除重複 ${duplicateCount} 題)`, 'success');
+        }
+
+        // 渲染雙層分類（母類別 / 子類別）
+        function renderCategories() {
+            const categories = [...new Set(window.questionBank.map(q => q.category))];
+            const container = document.getElementById('categoryList');
+            
+            let html = `
+                <button onclick="filterCategory('ALL')" class="px-3 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm ${
+                    selectedCategory === 'ALL' 
+                    ? 'bg-sky-500 text-white font-bold shadow-sky-200 dark:shadow-none' 
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }">
+                    全部 (${window.questionBank.length})
+                </button>
+            `;
+
+            categories.forEach(cat => {
+                const isActive = cat === selectedCategory;
+                const count = window.questionBank.filter(q => q.category === cat).length;
+
+                html += `
+                    <div class="inline-flex items-center rounded-xl text-xs transition-all ${
+                        isActive ? 'bg-sky-500 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
+                    }">
+                        <button onclick="filterCategory('${cat}')" class="px-2.5 py-1 font-semibold">
+                            ${cat} (${count})
+                        </button>
+                        <button onclick="deleteCategory('${cat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
+                            ×
+                        </button>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            const subSection = document.getElementById('subCategorySection');
+            const subContainer = document.getElementById('subCategoryList');
+
+            if (selectedCategory === 'ALL') {
+                subSection.classList.add('hidden');
+            } else {
+                const subcategories = [...new Set(window.questionBank
+                    .filter(q => q.category === selectedCategory && q.subcategory)
+                    .map(q => q.subcategory))];
+
+                if (subcategories.length > 0) {
+                    subSection.classList.remove('hidden');
+                    let subHtml = `
+                        <button onclick="filterSubCategory('ALL')" class="px-2.5 py-0.5 rounded-lg text-xs font-semibold transition ${
+                            selectedSubCategory === 'ALL' 
+                            ? 'bg-sky-700 text-white' 
+                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }">
+                            全部子類別
+                        </button>
+                    `;
+
+                    subcategories.forEach(sub => {
+                        const isSubActive = sub === selectedSubCategory;
+                        const subCount = window.questionBank.filter(q => q.category === selectedCategory && q.subcategory === sub).length;
+
+                        subHtml += `
+                            <div class="inline-flex items-center rounded-lg text-xs transition ${
+                                isSubActive ? 'bg-sky-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }">
+                                <button onclick="filterSubCategory('${sub}')" class="px-2 py-0.5 font-semibold">
+                                    ${sub} (${subCount})
+                                </button>
+                                <button onclick="deleteSubCategory('${selectedCategory}', '${sub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
+                                    ×
+                                </button>
+                            </div>
+                        `;
+                    });
+
+                    subContainer.innerHTML = subHtml;
+                } else {
+                    subSection.classList.add('hidden');
+                }
+            }
+        }
+
+        function filterCategory(cat) {
+            selectedCategory = cat;
+            selectedSubCategory = 'ALL';
+            renderCategories();
+            performSearch();
+        }
+
+        function filterSubCategory(sub) {
+            selectedSubCategory = sub;
+            renderCategories();
+            performSearch();
+        }
+
+        function deleteCategory(categoryName) {
+            const count = window.questionBank.filter(q => q.category === categoryName).length;
+            showConfirm(
+                '刪除母類別',
+                `確定要刪除「${categoryName}」母類別及其底下的 ${count} 道題目嗎？`,
+                () => {
+                    window.questionBank = window.questionBank.filter(q => q.category !== categoryName);
+                    if (selectedCategory === categoryName) {
+                        selectedCategory = 'ALL';
+                        selectedSubCategory = 'ALL';
+                    }
+                    saveAndRefresh();
+                    showToast(`已刪除「${categoryName}」類別`, 'info');
+                }
+            );
+        }
+
+        function deleteSubCategory(parentCategory, subCategoryName) {
+            const count = window.questionBank.filter(q => q.category === parentCategory && q.subcategory === subCategoryName).length;
+            showConfirm(
+                '刪除子類別',
+                `確定要刪除「${parentCategory} ➔ ${subCategoryName}」子類別下的 ${count} 道題目嗎？`,
+                () => {
+                    window.questionBank = window.questionBank.filter(q => !(q.category === parentCategory && q.subcategory === subCategoryName));
+                    if (selectedSubCategory === subCategoryName) {
+                        selectedSubCategory = 'ALL';
+                    }
+                    saveAndRefresh();
+                    showToast(`已刪除「${subCategoryName}」子類別`, 'info');
+                }
+            );
+        }
+
+        // 搜尋比對與渲染卡片
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const searchMode = document.querySelector('input[name="searchMode"]:checked').value;
+            const container = document.getElementById('resultsContainer');
+
+            let list = window.questionBank.filter(q => {
+                const matchParent = selectedCategory === 'ALL' || q.category === selectedCategory;
+                const matchSub = selectedSubCategory === 'ALL' || q.subcategory === selectedSubCategory;
+                return matchParent && matchSub;
+            });
+
+            if (query !== '') {
+                list = list.filter(q => {
+                    const qText = (q.question || '').toLowerCase();
+                    const aText = (q.answers || []).join(' ').toLowerCase();
+
+                    if (searchMode === 'exact') {
+                        return qText === query || aText === query;
+                    } else {
+                        return qText.includes(query) || aText.includes(query);
+                    }
+                });
+            }
+
+            document.getElementById('searchResultCount').innerText = `共 ${list.length} 題`;
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-center text-slate-400 dark:text-slate-500 text-xs shadow-sm">
+                        <i class="fa-regular fa-folder-open text-3xl mb-2 text-slate-300 dark:text-slate-600"></i>
+                        <p class="font-medium">未找到符合條件的題目</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = list.map((item, index) => {
+                const highlightedQuestion = highlightText(item.question || '', query);
+                const highlightedAnswers = (item.answers || []).map(ans => highlightText(ans, query));
+
+                const categoryLabel = item.subcategory 
+                    ? `${item.category} / ${item.subcategory}` 
+                    : item.category;
+
+                return `
+                    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
+                        <div class="flex justify-between items-center text-xs">
+                            <div class="flex gap-1.5 items-center">
+                                <span class="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg font-semibold text-[11px] border border-slate-200/50 dark:border-slate-700">${categoryLabel}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="openEditModal('${item.id}')" class="text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 text-[11px] font-semibold flex items-center gap-1 transition bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-800/50">
+                                    <i class="fa-regular fa-pen-to-square"></i> 編輯
+                                </button>
+                                <button onclick="openImageModal('${item.id}')" class="text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 text-[11px] font-semibold flex items-center gap-1 transition bg-sky-50/80 dark:bg-sky-950/40 hover:bg-sky-100/80 dark:hover:bg-sky-900/50 px-2.5 py-1 rounded-lg border border-sky-200/60 dark:border-sky-800/50">
+                                    <i class="fa-regular fa-image"></i> ${item.image ? '修改圖片' : '圖片'}
+                                </button>
+                                <button onclick="deleteQuestion('${item.id}')" class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1 transition rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100 leading-relaxed">
+                            <span class="inline-block bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 text-xs px-2 py-0.5 rounded-md font-extrabold mr-1.5">${index + 1}</span>${highlightedQuestion}
+                        </div>
+
+                        ${item.image ? `
+                            <div class="relative group my-2 max-w-sm mx-auto overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+                                <img src="${item.image}" alt="題目圖片" class="w-full max-h-56 object-contain cursor-pointer transition group-hover:scale-[1.01]" onclick="openViewImageModal('${item.image}')">
+                                <div class="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition duration-200 flex items-center justify-center gap-2">
+                                    <button onclick="openViewImageModal('${item.image}')" class="bg-white/90 text-slate-800 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md backdrop-blur-sm hover:bg-white">放大查看</button>
+                                    <button onclick="openImageModal('${item.id}')" class="bg-sky-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md hover:bg-sky-700">更換</button>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div class="space-y-2 pt-1">
+                            ${highlightedAnswers.map(ans => `
+                                <div class="w-full px-4 py-2.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 text-xs font-semibold flex justify-between items-center transition shadow-sm">
+                                    <span class="font-mono text-xs">${ans}</span>
+                                    <span class="text-[10px] bg-emerald-200/80 dark:bg-emerald-800/80 text-emerald-900 dark:text-emerald-100 px-2.5 py-0.5 rounded-full font-bold">✓ 正確答案</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ===== 題目文字內文 Modal 編輯邏輯 =====
+        function openEditModal(id) {
+            currentEditingTextQuestionId = id;
+            const question = window.questionBank.find(q => String(q.id) === String(id));
+            if (!question) {
+                showToast('找不到該題目數據！', 'error');
+                return;
+            }
+
+            document.getElementById('editCategoryInput').value = question.category || '';
+            document.getElementById('editSubCategoryInput').value = question.subcategory || '';
+            document.getElementById('editQuestionInput').value = question.question || '';
+            document.getElementById('editAnswersInput').value = (question.answers || []).join('\n');
+
+            const modal = document.getElementById('editQuestionModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editQuestionModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            currentEditingTextQuestionId = null;
+        }
+
+        function saveQuestionText() {
+            if (!currentEditingTextQuestionId) return;
+
+            const category = document.getElementById('editCategoryInput').value.trim() || '未分類';
+            const subcategory = document.getElementById('editSubCategoryInput').value.trim() || '';
+            const questionText = document.getElementById('editQuestionInput').value.trim();
+            const answersText = document.getElementById('editAnswersInput').value.trim();
+
+            if (!questionText) {
+                showToast('題目內容不能為空！', 'error');
+                return;
+            }
+
+            const answers = answersText.split('\n').map(a => a.trim()).filter(a => a.length > 0);
+
+            const qIndex = window.questionBank.findIndex(q => String(q.id) === String(currentEditingTextQuestionId));
+            if (qIndex !== -1) {
+                window.questionBank[qIndex].category = category;
+                window.questionBank[qIndex].subcategory = subcategory;
+                window.questionBank[qIndex].question = questionText;
+                window.questionBank[qIndex].answers = answers.length > 0 ? answers : ['(未提供正確答案)'];
+                saveAndRefresh();
+                showToast('已完成題目更新！', 'success');
+            }
+
+            closeEditModal();
+        }
+
+        // ===== 圖片 Modal 編輯邏輯 =====
+        function openViewImageModal(src) {
+            document.getElementById('fullImageView').src = src;
+            const modal = document.getElementById('viewImageModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeViewImageModal() {
+            const modal = document.getElementById('viewImageModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            document.getElementById('fullImageView').src = '';
+        }
+
+        function openImageModal(id) {
+            currentEditingQuestionId = id;
+            const question = window.questionBank.find(q => String(q.id) === String(id));
+            if (!question) return;
+
+            document.getElementById('modalImageFileInput').value = '';
+
+            const previewImg = document.getElementById('modalImagePreview');
+            const previewContainer = document.getElementById('modalImagePreviewContainer');
+
+            if (question.image) {
+                previewImg.src = question.image;
+                previewContainer.classList.remove('hidden');
+            } else {
+                previewContainer.classList.add('hidden');
+            }
+
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                const pasteArea = document.getElementById('modalPasteArea');
+                if (pasteArea) pasteArea.focus();
+            }, 100);
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            currentEditingQuestionId = null;
+        }
+
+        function handlePasteEvent(e) {
+            const clipboardData = e.clipboardData || window.clipboardData;
+            if (!clipboardData) return;
+
+            const items = clipboardData.items;
+            let imageFound = false;
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const base64Img = event.target.result;
+                        const previewImg = document.getElementById('modalImagePreview');
+                        const previewContainer = document.getElementById('modalImagePreviewContainer');
+                        previewImg.src = base64Img;
+                        previewContainer.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(blob);
+                    imageFound = true;
+                    e.preventDefault();
+                    break;
+                }
+            }
+
+            if (!imageFound) {
+                showToast('剪貼簿中未偵測到圖片！請先複製圖片', 'error');
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const base64Img = event.target.result;
+                const previewImg = document.getElementById('modalImagePreview');
+                const previewContainer = document.getElementById('modalImagePreviewContainer');
+                previewImg.src = base64Img;
+                previewContainer.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveQuestionImage() {
+            if (!currentEditingQuestionId) return;
+
+            const previewImg = document.getElementById('modalImagePreview');
+            const container = document.getElementById('modalImagePreviewContainer');
+            
+            let finalImageSrc = '';
+            if (!container.classList.contains('hidden')) {
+                finalImageSrc = previewImg.src;
+            }
+
+            const qIndex = window.questionBank.findIndex(q => String(q.id) === String(currentEditingQuestionId));
+            if (qIndex !== -1) {
+                window.questionBank[qIndex].image = finalImageSrc;
+                saveAndRefresh();
+                showToast('題目圖片已儲存！', 'success');
+            }
+
+            closeImageModal();
+        }
+
+        function removeQuestionImage() {
+            if (!currentEditingQuestionId) return;
+
+            const qIndex = window.questionBank.findIndex(q => String(q.id) === String(currentEditingQuestionId));
+            if (qIndex !== -1) {
+                window.questionBank[qIndex].image = '';
+                saveAndRefresh();
+                showToast('圖片已移除！', 'info');
+            }
+
+            closeImageModal();
+        }
+
+        // 刪除單題
+        function deleteQuestion(id) {
+            showConfirm(
+                '刪除題目',
+                '確定要刪除這道題目嗎？此操作無法復原。',
+                () => {
+                    window.questionBank = window.questionBank.filter(q => String(q.id) !== String(id));
+                    saveAndRefresh();
+                    showToast('題目已刪除！', 'info');
+                }
+            );
+        }
+
+        // 手動清理重複題目
+        function removeDuplicateQuestions() {
+            const initialCount = window.questionBank.length;
+            const uniqueMap = new Map();
+
+            window.questionBank.forEach(q => {
+                const key = `${(q.question||'').trim().toLowerCase()}_${JSON.stringify((q.answers||[]).map(a => a.trim().toLowerCase()))}`;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, q);
+                }
+            });
+
+            window.questionBank = Array.from(uniqueMap.values());
+            const removedCount = initialCount - window.questionBank.length;
+
+            saveAndRefresh();
+            showToast(`重複題目清理完畢，共移除 ${removedCount} 題`, 'success');
+        }
+
+        // 關鍵字高亮標記功能
+        function highlightText(text, query) {
+            if (!text) return '';
+            if (!query) return text;
+            const regex = new RegExp(`(${query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // 清空整個資料庫
+        function clearDatabase() {
+            showConfirm(
+                '清空全系統題庫',
+                '確定要清空所有題庫資料嗎？此操作將不可復原。',
+                () => {
+                    window.questionBank = [];
+                    saveAndRefresh();
+                    showToast('題庫已全部清空！', 'info');
+                }
+            );
+        }
+
+        // JSON 匯出
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.questionBank, null, 2));
+            const anchor = document.createElement('a');
+            anchor.setAttribute("href", dataStr);
+            anchor.setAttribute("download", `question_bank_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            showToast('已匯出 JSON 備份檔！', 'success');
+        }
+
+        // JSON 匯入
+        function importJSONFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        window.questionBank = imported;
+                        saveAndRefresh();
+                        showToast('JSON 題庫備份成功載入！', 'success');
+                    }
+                } catch (err) {
+                    showToast('讀取失敗：' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ===== Firebase 雲端整合處理 =====
+        function setupFirebase(silent = false) {
+            const rawConfig = document.getElementById('firebaseConfigInput').value.trim();
+            if (!rawConfig) {
+                if (!silent) showToast('請輸入 Firebase Config 配置物件', 'error');
+                return;
+            }
+
+            try {
+                const config = JSON.parse(rawConfig);
+                const success = window.initFirebase(config);
+                if (success) {
+                    localStorage.setItem('firebase_config_cache', rawConfig);
+                    const statusEl = document.getElementById('firebaseStatus');
+                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
+                    statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
+                    if (!silent) showToast('Firebase 連線成功！', 'success');
+                }
+            } catch (err) {
+                const statusEl = document.getElementById('firebaseStatus');
+                statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> 配置錯誤';
+                statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800/60';
+                if (!silent) showToast('JSON 解析失敗，請檢查 Firebase Config 格式', 'error');
+            }
+        }
+
+        async function uploadToFirebase() {
+            try {
+                await window.firebaseSyncToCloud("questions");
+                showToast('已將題庫同步備份至 Firebase 雲端！', 'success');
+            } catch (err) {
+                showToast('推送至雲端失敗：' + err.message, 'error');
+            }
+        }
+
+        async function downloadFromFirebase() {
+            try {
+                const cloudData = await window.firebaseFetchFromCloud("questions");
+                if (Array.isArray(cloudData)) {
+                    window.questionBank = cloudData;
+                    saveAndRefresh();
+                    showToast('已順利從 Firebase 載入最新題庫！', 'success');
+                }
+            } catch (err) {
+                showToast('拉取雲端資料失敗：' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
