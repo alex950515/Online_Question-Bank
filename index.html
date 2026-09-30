@@ -145,10 +145,11 @@
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- 主內容區：在大螢幕 (lg:) 下限制最大高度並隱藏全頁滾動條，讓左右欄獨立滾動 -->
+    <main class="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
 
-        <!-- 左側控制面板 -->
-        <section class="lg:col-span-1 space-y-5">
+        <!-- 左側控制面板（獨立滾動） -->
+        <section class="lg:col-span-1 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
             
             <!-- 1. 題庫匯入面板 -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-4">
@@ -271,8 +272,8 @@ Win32 API
 
         </section>
 
-        <!-- 右側檢索面板 -->
-        <section class="lg:col-span-2 space-y-5">
+        <!-- 右側檢索面板（獨立滾動） -->
+        <section class="lg:col-span-2 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
 
             <!-- 搜尋框區域 -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
