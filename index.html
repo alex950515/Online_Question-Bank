@@ -316,13 +316,16 @@ Win32 API
             <div class="space-y-3">
                 <div id="modalPasteArea" tabindex="0" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-50/80 dark:bg-slate-800/50 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-400/30">
                     <i class="fa-regular fa-clipboard text-3xl text-sky-500 dark:text-sky-400 mb-2"></i>
-                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">點擊此處並按下 <kbd class="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md text-[11px] font-mono shadow-sm">Ctrl + V</kbd> 貼上圖片</p>
-                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">或使用下方選擇檔案按鈕上傳</p>
+                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">開啟此視窗後，直接按下 <kbd class="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md text-[11px] font-mono shadow-sm">Ctrl + V</kbd> 貼上</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">或點擊下方按鈕讀取剪貼簿 / 上傳檔案</p>
                 </div>
 
-                <div class="flex justify-center">
-                    <label class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs px-3.5 py-2 rounded-xl font-semibold cursor-pointer transition flex items-center gap-2">
-                        <i class="fa-solid fa-folder-open text-sky-500 dark:text-sky-400"></i> 從電腦選擇圖片
+                <div class="flex justify-center gap-2">
+                    <button onclick="readClipboardImage()" class="bg-sky-500 hover:bg-sky-600 text-white text-xs px-3.5 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-regular fa-paste"></i> 讀取剪貼簿圖片
+                    </button>
+                    <label class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs px-3.5 py-2 rounded-xl font-semibold cursor-pointer transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-folder-open text-sky-500 dark:text-sky-400"></i> 從電腦選擇
                         <input type="file" id="modalImageFileInput" accept="image/*" class="hidden">
                     </label>
                 </div>
@@ -463,6 +466,9 @@ Win32 API
                 setupFirebase(true);
             }
 
+            // 綁定全域貼上事件，確保開啟彈窗時按 Ctrl+V 都能擷取圖片
+            window.addEventListener('paste', handlePasteEvent);
+
             // 綁定 modal 圖片檔案切換與剪貼簿貼上觸發預覽
             const fileInput = document.getElementById('modalImageFileInput');
             if (fileInput) {
@@ -471,7 +477,6 @@ Win32 API
 
             const pasteArea = document.getElementById('modalPasteArea');
             if (pasteArea) {
-                pasteArea.addEventListener('paste', handlePasteEvent);
                 pasteArea.addEventListener('click', function() {
                     this.focus();
                 });
@@ -1035,46 +1040,98 @@ Win32 API
         }
 
         function handlePasteEvent(e) {
+            const modal = document.getElementById('imageModal');
+            if (!modal || modal.classList.contains('hidden')) return;
+
             const clipboardData = e.clipboardData || window.clipboardData;
             if (!clipboardData) return;
 
             const items = clipboardData.items;
+            if (!items) return;
+
             let imageFound = false;
 
             for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
+                if (items[i].type && items[i].type.indexOf('image') !== -1) {
                     const blob = items[i].getAsFile();
+                    if (!blob || !(blob instanceof Blob)) continue;
+
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const base64Img = event.target.result;
                         const previewImg = document.getElementById('modalImagePreview');
                         const previewContainer = document.getElementById('modalImagePreviewContainer');
-                        previewImg.src = base64Img;
-                        previewContainer.classList.remove('hidden');
+                        if (previewImg && previewContainer) {
+                            previewImg.src = base64Img;
+                            previewContainer.classList.remove('hidden');
+                        }
                     };
                     reader.readAsDataURL(blob);
                     imageFound = true;
                     e.preventDefault();
+                    showToast('已成功貼上剪貼簿圖片！', 'success');
                     break;
                 }
             }
 
-            if (!imageFound) {
+            if (!imageFound && e.target && e.target.id === 'modalPasteArea') {
                 showToast('剪貼簿中未偵測到圖片！請先複製圖片', 'error');
             }
         }
 
+        async function readClipboardImage() {
+            try {
+                if (navigator.clipboard && navigator.clipboard.read) {
+                    const clipboardItems = await navigator.clipboard.read();
+                    let imageFound = false;
+                    for (const clipboardItem of clipboardItems) {
+                        for (const type of clipboardItem.types) {
+                            if (type.startsWith('image/')) {
+                                const blob = await clipboardItem.getType(type);
+                                if (!blob || !(blob instanceof Blob)) continue;
+
+                                const reader = new FileReader();
+                                reader.onload = function(event) {
+                                    const base64Img = event.target.result;
+                                    const previewImg = document.getElementById('modalImagePreview');
+                                    const previewContainer = document.getElementById('modalImagePreviewContainer');
+                                    if (previewImg && previewContainer) {
+                                        previewImg.src = base64Img;
+                                        previewContainer.classList.remove('hidden');
+                                    }
+                                };
+                                reader.readAsDataURL(blob);
+                                imageFound = true;
+                                showToast('已從剪貼簿讀取圖片！', 'success');
+                                break;
+                            }
+                        }
+                        if (imageFound) break;
+                    }
+                    if (!imageFound) {
+                        showToast('剪貼簿中未找到圖片，請先複製圖片！', 'error');
+                    }
+                } else {
+                    showToast('請開啟彈窗後直接按下 Ctrl + V 貼上', 'info');
+                }
+            } catch (err) {
+                showToast('請直接按下鍵盤 Ctrl + V 貼上圖片', 'info');
+            }
+        }
+
         function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files && e.target.files[0];
+            if (!file || !(file instanceof Blob)) return;
 
             const reader = new FileReader();
             reader.onload = function(event) {
                 const base64Img = event.target.result;
                 const previewImg = document.getElementById('modalImagePreview');
                 const previewContainer = document.getElementById('modalImagePreviewContainer');
-                previewImg.src = base64Img;
-                previewContainer.classList.remove('hidden');
+                if (previewImg && previewContainer) {
+                    previewImg.src = base64Img;
+                    previewContainer.classList.remove('hidden');
+                }
             };
             reader.readAsDataURL(file);
         }
