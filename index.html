@@ -231,11 +231,11 @@ Win32 API
 
         </section>
 
-        <!-- 右側檢索面板（獨立滾動） -->
-        <section class="lg:col-span-2 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
+        <!-- 右側檢索面板（搜尋框固定，僅題目清單獨立滾動） -->
+        <section class="lg:col-span-2 flex flex-col space-y-4 lg:h-full lg:overflow-hidden">
 
-            <!-- 搜尋框區域 -->
-            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+            <!-- 搜尋框區域 (固定於頂部) -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3 shrink-0">
                 <div class="relative">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500 text-sm"></i>
                     <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
@@ -254,8 +254,8 @@ Win32 API
                 </div>
             </div>
 
-            <!-- 結果清單 -->
-            <div id="resultsContainer" class="space-y-4">
+            <!-- 結果清單 (獨立滾動) -->
+            <div id="resultsContainer" class="space-y-4 lg:overflow-y-auto lg:flex-1 lg:pr-1.5 pb-4">
                 <!-- 動態呈現 -->
             </div>
 
@@ -733,8 +733,16 @@ Win32 API
 
             parsedQuestions.forEach(newQ => {
                 const isDuplicate = window.questionBank.some(existQ => {
-                    // 僅比對題目文字敘述（忽略大小寫與前後空白），答案不在比對範圍內
-                    return (existQ.question || '').trim().toLowerCase() === (newQ.question || '').trim().toLowerCase();
+                    // 1. 比對題目文字敘述
+                    const sameQuestion = (existQ.question || '').trim().toLowerCase() === (newQ.question || '').trim().toLowerCase();
+                    
+                    // 2. 比對選項/答案內容 (須完全一致)
+                    const existAnsStr = (existQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
+                    const newAnsStr = (newQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
+                    const sameAnswers = existAnsStr === newAnsStr;
+
+                    // 題目與選項答案皆相同才算重複
+                    return sameQuestion && sameAnswers;
                 });
 
                 if (isDuplicate) {
@@ -1229,10 +1237,13 @@ Win32 API
             const uniqueMap = new Map();
 
             window.questionBank.forEach(q => {
-                // 僅以題目文字（去除前後空白並轉小寫）作為唯一判斷依據
-                const key = (q.question || '').trim().toLowerCase();
-                if (!uniqueMap.has(key)) {
-                    uniqueMap.set(key, q);
+                // 結合「題目內文」與「選項答案」產生唯一識別 Key
+                const qKey = (q.question || '').trim().toLowerCase();
+                const aKey = (q.answers || []).map(a => a.trim().toLowerCase()).join('|||');
+                const combinedKey = `${qKey}___${aKey}`;
+
+                if (!uniqueMap.has(combinedKey)) {
+                    uniqueMap.set(combinedKey, q);
                 }
             });
 
