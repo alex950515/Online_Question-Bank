@@ -111,6 +111,13 @@
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* 隱藏 datalist 原生黑色倒三角形箭頭，只保留一個自訂箭頭 */
+        input::-webkit-calendar-picker-indicator {
+            display: none !important;
+            opacity: 0 !important;
+            -webkit-appearance: none;
+        }
     </style>
 </head>
 <body class="bg-slate-100/70 dark:bg-slate-950 min-h-screen text-slate-700 dark:text-slate-200 font-sans antialiased selection:bg-sky-300 selection:text-sky-950 transition-colors duration-200">
@@ -170,11 +177,23 @@
                 <div class="grid grid-cols-2 gap-2.5">
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別名稱</label>
-                        <input type="text" id="categoryNameInput" value="" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="如：作業系統">
+                        <div class="relative group">
+                            <input type="text" id="categoryNameInput" list="existingCategoriesDatalist" oninput="updateSubCategoryDatalist()" value="" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="輸入母類別名稱">
+                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center group-focus-within:text-sky-500 dark:group-focus-within:text-sky-400 group-focus-within:bg-sky-100 dark:group-focus-within:bg-sky-900/50 group-focus-within:rotate-180 transition-all duration-300">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <datalist id="existingCategoriesDatalist"></datalist>
                     </div>
                     <div>
                         <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別名稱 (選填)</label>
-                        <input type="text" id="subCategoryNameInput" value="" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="如：第一章/章節">
+                        <div class="relative group">
+                            <input type="text" id="subCategoryNameInput" list="existingSubCategoriesDatalist" value="" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none" placeholder="輸入子類別名稱">
+                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center group-focus-within:text-sky-500 dark:group-focus-within:text-sky-400 group-focus-within:bg-sky-100 dark:group-focus-within:bg-sky-900/50 group-focus-within:rotate-180 transition-all duration-300">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <datalist id="existingSubCategoriesDatalist"></datalist>
                     </div>
                 </div>
 
@@ -225,6 +244,33 @@ Win32 API
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">子類別 (Subcategory)</p>
                     <div id="subCategoryList" class="flex flex-wrap gap-1.5">
                         <!-- 子類別動態渲染 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 各題庫系統練習時間 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-clock text-sky-500 dark:text-sky-400"></i> 各題庫系統練習時間
+                    </h2>
+                    <button id="editNotesBtn" onclick="togglePracticeNotesEdit()" class="text-sky-600 dark:text-sky-400 hover:text-sky-700 text-xs font-semibold flex items-center gap-1 transition">
+                        <i class="fa-regular fa-pen-to-square"></i> <span id="editNotesBtnText">編輯</span>
+                    </button>
+                </div>
+
+                <!-- 顯示模式 (超連結自動解析) -->
+                <div id="practiceNotesDisplay" class="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed min-h-[60px] bg-slate-50/50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 break-words">
+                    <!-- 動態渲染文字與超連結 -->
+                </div>
+
+                <!-- 編輯模式 -->
+                <div id="practiceNotesEditArea" class="hidden space-y-2">
+                    <textarea id="practiceNotesInput" rows="5" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="請輸入練習時間與網址，例如：&#10;作業系統：每週一、三 20:00&#10;線上測驗網址：https://example.com/exam"></textarea>
+                    <div class="flex justify-end">
+                        <button onclick="savePracticeNotes()" class="bg-sky-500 hover:bg-sky-600 text-slate-950 text-xs px-3.5 py-1.5 rounded-xl font-bold transition shadow-sm">
+                            儲存內容
+                        </button>
                     </div>
                 </div>
             </div>
@@ -478,10 +524,12 @@ Win32 API
         let selectedSubCategory = 'ALL';
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
+        let isEditingNotes = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
             saveAndRefresh();
+            loadPracticeNotes();
             
             // 自動嘗試載入先前儲存的 Firebase 配置
             const savedConfig = localStorage.getItem('firebase_config_cache');
@@ -618,6 +666,61 @@ Win32 API
             document.getElementById('questionCountBadge').innerText = `${window.questionBank.length} 題`;
             renderCategories();
             performSearch();
+        }
+
+        // ===== 各題庫系統練習時間編輯與網址轉導功能 =====
+        function loadPracticeNotes() {
+            const saved = localStorage.getItem('practice_schedule_notes');
+            const defaultText = "作業系統：每週一、三 20:00 練習\n線上測驗系統：https://example.com";
+            const text = saved !== null ? saved : defaultText;
+            
+            const input = document.getElementById('practiceNotesInput');
+            if (input) input.value = text;
+            renderPracticeNotes(text);
+        }
+
+        function renderPracticeNotes(text) {
+            const display = document.getElementById('practiceNotesDisplay');
+            if (!display) return;
+            if (!text || text.trim() === '') {
+                display.innerHTML = '<span class="text-slate-400 dark:text-slate-500 font-normal italic">尚無設定練習時間，點擊右上角「編輯」以新增內容。</span>';
+                return;
+            }
+            
+            // HTML 安全字元轉義 + 自動解析 URL 為可點擊的超連結
+            const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            const linkedText = escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-600 dark:text-sky-400 underline hover:text-sky-500 font-medium inline-flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>$1</a>');
+            
+            display.innerHTML = linkedText;
+        }
+
+        function togglePracticeNotesEdit() {
+            isEditingNotes = !isEditingNotes;
+            const display = document.getElementById('practiceNotesDisplay');
+            const editArea = document.getElementById('practiceNotesEditArea');
+            const btnText = document.getElementById('editNotesBtnText');
+
+            if (isEditingNotes) {
+                display.classList.add('hidden');
+                editArea.classList.remove('hidden');
+                btnText.innerText = '取消';
+                document.getElementById('practiceNotesInput').focus();
+            } else {
+                display.classList.remove('hidden');
+                editArea.classList.add('hidden');
+                btnText.innerText = '編輯';
+            }
+        }
+
+        function savePracticeNotes() {
+            const input = document.getElementById('practiceNotesInput');
+            if (!input) return;
+            const text = input.value;
+            localStorage.setItem('practice_schedule_notes', text);
+            renderPracticeNotes(text);
+            togglePracticeNotesEdit();
+            showToast('已更新練習時間與連結！', 'success');
         }
 
         /**
@@ -761,6 +864,7 @@ Win32 API
 
         // 渲染雙層分類（母類別 / 子類別）
         function renderCategories() {
+            updateCategoryDatalists();
             const categories = [...new Set(window.questionBank.map(q => q.category))];
             const container = document.getElementById('categoryList');
             
@@ -885,6 +989,34 @@ Win32 API
                     showToast(`已刪除「${subCategoryName}」子類別`, 'info');
                 }
             );
+        }
+
+        // 動態更新母子類別選單 (Datalist)
+        function updateCategoryDatalists() {
+            const parentList = document.getElementById('existingCategoriesDatalist');
+            if (parentList) {
+                const categories = [...new Set(window.questionBank.map(q => q.category).filter(Boolean))];
+                parentList.innerHTML = categories.map(c => `<option value="${c}">`).join('');
+            }
+            updateSubCategoryDatalist();
+        }
+
+        function updateSubCategoryDatalist() {
+            const subList = document.getElementById('existingSubCategoriesDatalist');
+            if (!subList) return;
+            
+            const currentParent = document.getElementById('categoryNameInput').value.trim();
+            let subcategories = [];
+            if (currentParent) {
+                subcategories = [...new Set(window.questionBank
+                    .filter(q => q.category === currentParent && q.subcategory)
+                    .map(q => q.subcategory))];
+            } else {
+                subcategories = [...new Set(window.questionBank
+                    .map(q => q.subcategory)
+                    .filter(Boolean))];
+            }
+            subList.innerHTML = subcategories.map(s => `<option value="${s}">`).join('');
         }
 
         // 搜尋比對與渲染卡片
