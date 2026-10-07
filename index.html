@@ -111,7 +111,6 @@
 </head>
 <body class="bg-slate-100/70 dark:bg-slate-950 min-h-screen text-slate-700 dark:text-slate-200 font-sans antialiased selection:bg-sky-300 selection:text-sky-950 transition-colors duration-200">
 
-    <!-- 頂部導覽列 (天空藍風格) -->
     <header class="bg-gradient-to-r from-sky-950 via-slate-900 to-sky-900 text-white shadow-md sticky top-0 z-40 border-b border-sky-800/40 backdrop-blur-md">
         <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -148,7 +147,6 @@
         </div>
     </header>
 
-    <!-- 主內容區：在大螢幕 (lg:) 下限制最大高度並隱藏全頁滾動條，讓左右欄獨立滾動 -->
     <main class="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
 
         <!-- 左側控制面板（獨立滾動） -->
@@ -216,11 +214,17 @@ Win32 API
                 </div>
             </div>
 
-            <!-- 2. 分類篩選與管理 -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
-                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                    <i class="fa-solid fa-tags text-sky-500 dark:text-sky-400"></i> 分類階層篩選
-                </h2>
+                <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-tags text-sky-500 dark:text-sky-400"></i> 分類階層篩選
+                    </h2>
+                    <button id="toggleReorderBtn" onclick="toggleReorderMode()" class="px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700">
+                        <i id="toggleReorderIcon" class="fa-solid fa-arrows-up-down-left-right text-sky-500"></i>
+                        <span id="toggleReorderText">自訂順序</span>
+                    </button>
+                </div>
+
                 <!-- 母類別容器 -->
                 <div>
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">母類別 (Parent)</p>
@@ -266,7 +270,6 @@ Win32 API
 
         </section>
 
-        <!-- 右側檢索面板（搜尋框固定，僅題目清單獨立滾動） -->
         <section class="lg:col-span-2 flex flex-col space-y-4 lg:h-full lg:overflow-hidden">
 
             <!-- 搜尋框區域 (固定於頂部) -->
@@ -509,11 +512,16 @@ Win32 API
             }
         ];
 
+        // 自訂類別排序變數 (儲存於 localStorage)
+        window.categoryOrder = JSON.parse(localStorage.getItem('category_order_v1')) || [];
+        window.subCategoryOrder = JSON.parse(localStorage.getItem('sub_category_order_v1')) || {};
+
         let selectedCategory = 'ALL';
         let selectedSubCategory = 'ALL';
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
         let isEditingNotes = false;
+        let isReorderingCategories = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
@@ -805,7 +813,6 @@ Win32 API
                 }
 
                 if (currentMode === 'SCORE') {
-                    // 比對得分數字如 "1 / 1" 或 "0 / 3"
                     let scoreMatch = line.match(/^(\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?|\d+)(.*)/);
                     if (scoreMatch) {
                         let remaining = (scoreMatch[4] || '').trim();
@@ -861,7 +868,6 @@ Win32 API
                 return;
             }
 
-            // 比對重複題目剔除 (題目與選項答案完全一致才去重)
             let newAddedCount = 0;
             let duplicateCount = 0;
 
@@ -888,10 +894,87 @@ Win32 API
             showToast(`成功新增 ${newAddedCount} 題 (剔除重複 ${duplicateCount} 題)`, 'success');
         }
 
+        // 取得自訂排序後的母類別列表
+        function getSortedCategories() {
+            const allCats = [...new Set(window.questionBank.map(q => q.category).filter(Boolean))];
+            allCats.forEach(cat => {
+                if (!window.categoryOrder.includes(cat)) {
+                    window.categoryOrder.push(cat);
+                }
+            });
+            window.categoryOrder = window.categoryOrder.filter(cat => allCats.includes(cat));
+            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+            return window.categoryOrder;
+        }
+
+        // 取得自訂排序後的子類別列表
+        function getSortedSubCategories(parentCat) {
+            const allSubs = [...new Set(window.questionBank
+                .filter(q => q.category === parentCat && q.subcategory)
+                .map(q => q.subcategory))];
+
+            if (!window.subCategoryOrder[parentCat]) {
+                window.subCategoryOrder[parentCat] = [];
+            }
+
+            allSubs.forEach(sub => {
+                if (!window.subCategoryOrder[parentCat].includes(sub)) {
+                    window.subCategoryOrder[parentCat].push(sub);
+                }
+            });
+
+            window.subCategoryOrder[parentCat] = window.subCategoryOrder[parentCat].filter(sub => allSubs.includes(sub));
+            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+            return window.subCategoryOrder[parentCat];
+        }
+
+        // 移動母類別順序
+        function moveCategory(index, direction) {
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= window.categoryOrder.length) return;
+            const temp = window.categoryOrder[index];
+            window.categoryOrder[index] = window.categoryOrder[targetIndex];
+            window.categoryOrder[targetIndex] = temp;
+            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+            renderCategories();
+        }
+
+        // 移動子類別順序
+        function moveSubCategory(parentCat, index, direction) {
+            const list = window.subCategoryOrder[parentCat];
+            if (!list) return;
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= list.length) return;
+            const temp = list[index];
+            list[index] = list[targetIndex];
+            list[targetIndex] = temp;
+            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+            renderCategories();
+        }
+
+        // 切換自訂順序模式
+        function toggleReorderMode() {
+            isReorderingCategories = !isReorderingCategories;
+            const btnText = document.getElementById('toggleReorderText');
+            const btnIcon = document.getElementById('toggleReorderIcon');
+            const btn = document.getElementById('toggleReorderBtn');
+
+            if (isReorderingCategories) {
+                btnText.innerText = '完成排序';
+                btnIcon.className = 'fa-solid fa-check text-white';
+                btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-amber-500 text-white border-amber-600 shadow-sm';
+            } else {
+                btnText.innerText = '自訂順序';
+                btnIcon.className = 'fa-solid fa-arrows-up-down-left-right text-sky-500';
+                btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700';
+            }
+            renderCategories();
+        }
+
         // 渲染雙層分類（母類別 / 子類別）
         function renderCategories() {
             updateCategoryDatalists();
-            const categories = [...new Set(window.questionBank.map(q => q.category))];
+            const categories = getSortedCategories();
             const container = document.getElementById('categoryList');
             
             let html = `
@@ -904,22 +987,32 @@ Win32 API
                 </button>
             `;
 
-            categories.forEach(cat => {
+            categories.forEach((cat, idx) => {
                 const isActive = cat === selectedCategory;
                 const count = window.questionBank.filter(q => q.category === cat).length;
 
-                html += `
-                    <div class="inline-flex items-center rounded-xl text-xs transition-all ${
-                        isActive ? 'bg-sky-500 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
-                    }">
-                        <button onclick="filterCategory('${cat}')" class="px-2.5 py-1 font-semibold">
-                            ${cat} (${count})
-                        </button>
-                        <button onclick="deleteCategory('${cat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
-                            ×
-                        </button>
-                    </div>
-                `;
+                if (isReorderingCategories) {
+                    html += `
+                        <div class="inline-flex items-center rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
+                            <button onclick="moveCategory(${idx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>◀</button>
+                            <span class="px-1.5 font-semibold">${cat}</span>
+                            <button onclick="moveCategory(${idx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === categories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === categories.length - 1 ? 'disabled' : ''}>▶</button>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="inline-flex items-center rounded-xl text-xs transition-all ${
+                            isActive ? 'bg-sky-500 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
+                        }">
+                            <button onclick="filterCategory('${cat}')" class="px-2.5 py-1 font-semibold">
+                                ${cat} (${count})
+                            </button>
+                            <button onclick="deleteCategory('${cat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
+                                ×
+                            </button>
+                        </div>
+                    `;
+                }
             });
 
             container.innerHTML = html;
@@ -930,9 +1023,7 @@ Win32 API
             if (selectedCategory === 'ALL') {
                 subSection.classList.add('hidden');
             } else {
-                const subcategories = [...new Set(window.questionBank
-                    .filter(q => q.category === selectedCategory && q.subcategory)
-                    .map(q => q.subcategory))];
+                const subcategories = getSortedSubCategories(selectedCategory);
 
                 if (subcategories.length > 0) {
                     subSection.classList.remove('hidden');
@@ -946,22 +1037,32 @@ Win32 API
                         </button>
                     `;
 
-                    subcategories.forEach(sub => {
+                    subcategories.forEach((sub, sIdx) => {
                         const isSubActive = sub === selectedSubCategory;
                         const subCount = window.questionBank.filter(q => q.category === selectedCategory && q.subcategory === sub).length;
 
-                        subHtml += `
-                            <div class="inline-flex items-center rounded-lg text-xs transition ${
-                                isSubActive ? 'bg-sky-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                            }">
-                                <button onclick="filterSubCategory('${sub}')" class="px-2 py-0.5 font-semibold">
-                                    ${sub} (${subCount})
-                                </button>
-                                <button onclick="deleteSubCategory('${selectedCategory}', '${sub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
-                                    ×
-                                </button>
-                            </div>
-                        `;
+                        if (isReorderingCategories) {
+                            subHtml += `
+                                <div class="inline-flex items-center rounded-lg text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
+                                    <button onclick="moveSubCategory('${selectedCategory}', ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
+                                    <span class="px-1.5 font-semibold">${sub}</span>
+                                    <button onclick="moveSubCategory('${selectedCategory}', ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
+                                </div>
+                            `;
+                        } else {
+                            subHtml += `
+                                <div class="inline-flex items-center rounded-lg text-xs transition ${
+                                    isSubActive ? 'bg-sky-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }">
+                                    <button onclick="filterSubCategory('${sub}')" class="px-2 py-0.5 font-semibold">
+                                        ${sub} (${subCount})
+                                    </button>
+                                    <button onclick="deleteSubCategory('${selectedCategory}', '${sub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
+                                        ×
+                                    </button>
+                                </div>
+                            `;
+                        }
                     });
 
                     subContainer.innerHTML = subHtml;
@@ -1021,7 +1122,7 @@ Win32 API
         function updateCategoryDatalists() {
             const parentList = document.getElementById('existingCategoriesDatalist');
             if (parentList) {
-                const categories = [...new Set(window.questionBank.map(q => q.category).filter(Boolean))];
+                const categories = getSortedCategories();
                 parentList.innerHTML = categories.map(c => `<option value="${c}">`).join('');
             }
             updateSubCategoryDatalist();
@@ -1034,9 +1135,7 @@ Win32 API
             const currentParent = document.getElementById('categoryNameInput').value.trim();
             let subcategories = [];
             if (currentParent) {
-                subcategories = [...new Set(window.questionBank
-                    .filter(q => q.category === currentParent && q.subcategory)
-                    .map(q => q.subcategory))];
+                subcategories = getSortedSubCategories(currentParent);
             } else {
                 subcategories = [...new Set(window.questionBank
                     .map(q => q.subcategory)
@@ -1432,7 +1531,6 @@ Win32 API
             const uniqueMap = new Map();
 
             window.questionBank.forEach(q => {
-                // 結合「題目內文」與「選項答案」產生唯一識別 Key
                 const qKey = (q.question || '').trim().toLowerCase();
                 const aKey = (q.answers || []).map(a => a.trim().toLowerCase()).join('|||');
                 const combinedKey = `${qKey}___${aKey}`;
@@ -1470,12 +1568,14 @@ Win32 API
             );
         }
 
-        // JSON 匯出（包涵題庫與練習時間）
+        // JSON 匯出（包涵題庫、練習時間與自訂排序）
         function exportJSON() {
             const notes = localStorage.getItem('practice_schedule_notes') || '';
             const exportData = {
                 questionBank: window.questionBank,
-                practiceNotes: notes
+                practiceNotes: notes,
+                categoryOrder: window.categoryOrder,
+                subCategoryOrder: window.subCategoryOrder
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
             const anchor = document.createElement('a');
@@ -1484,7 +1584,7 @@ Win32 API
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
-            showToast('已匯出完整 JSON 備份檔（含練習時間）！', 'success');
+            showToast('已匯出完整 JSON 備份檔（含練習時間與自訂排序）！', 'success');
         }
 
         // JSON 匯入（支援新版物件結構與舊版純陣列結構）
@@ -1497,21 +1597,27 @@ Win32 API
                 try {
                     const imported = JSON.parse(e.target.result);
                     if (Array.isArray(imported)) {
-                        // 舊版單純題庫陣列
                         window.questionBank = imported;
                         saveAndRefresh();
                         showToast('JSON 題庫備份成功載入！', 'success');
                     } else if (imported && typeof imported === 'object') {
-                        // 新版包含題庫與練習時間
                         if (Array.isArray(imported.questionBank)) {
                             window.questionBank = imported.questionBank;
-                            saveAndRefresh();
                         }
                         if (typeof imported.practiceNotes === 'string') {
                             localStorage.setItem('practice_schedule_notes', imported.practiceNotes);
                             loadPracticeNotes();
                         }
-                        showToast('JSON 題庫與練習時間成功載入！', 'success');
+                        if (Array.isArray(imported.categoryOrder)) {
+                            window.categoryOrder = imported.categoryOrder;
+                            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+                        }
+                        if (imported.subCategoryOrder && typeof imported.subCategoryOrder === 'object') {
+                            window.subCategoryOrder = imported.subCategoryOrder;
+                            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+                        }
+                        saveAndRefresh();
+                        showToast('JSON 題庫、練習時間與類別順序成功載入！', 'success');
                     }
                 } catch (err) {
                     showToast('讀取失敗：' + err.message, 'error');
@@ -1520,7 +1626,7 @@ Win32 API
             reader.readAsText(file);
         }
 
-        // ===== Firebase 雲端整合處理（同步題庫與練習時間） =====
+        // ===== Firebase 雲端整合處理（同步題庫、練習時間與類別順序） =====
         function setupFirebase(silent = false) {
             const rawConfig = document.getElementById('firebaseConfigInput').value.trim();
             if (!rawConfig) {
@@ -1555,9 +1661,10 @@ Win32 API
                 const notes = localStorage.getItem('practice_schedule_notes') || '';
                 const payload = {
                     questions: window.questionBank || [],
-                    practiceNotes: notes
+                    practiceNotes: notes,
+                    categoryOrder: window.categoryOrder || [],
+                    subCategoryOrder: window.subCategoryOrder || {}
                 };
-                // 一次性將全量數據（包含題庫與練習時間）原子化寫入根目錄，覆蓋舊有陣列格式
                 await window.set(window.ref(window.db, "/"), payload);
                 
                 showToast('已同步備份至firebase雲端!', 'success');
@@ -1576,20 +1683,25 @@ Win32 API
                 if (snapshot.exists()) {
                     const data = snapshot.val();
                     if (Array.isArray(data)) {
-                        // 相容舊版 Root 為 Array 的情況
                         window.questionBank = data;
-                        saveAndRefresh();
                     } else if (data && typeof data === 'object') {
-                        // 新版打包結構
                         if (Array.isArray(data.questions)) {
                             window.questionBank = data.questions;
-                            saveAndRefresh();
                         }
                         if (typeof data.practiceNotes === 'string') {
                             localStorage.setItem('practice_schedule_notes', data.practiceNotes);
                             loadPracticeNotes();
                         }
+                        if (Array.isArray(data.categoryOrder)) {
+                            window.categoryOrder = data.categoryOrder;
+                            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+                        }
+                        if (data.subCategoryOrder && typeof data.subCategoryOrder === 'object') {
+                            window.subCategoryOrder = data.subCategoryOrder;
+                            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+                        }
                     }
+                    saveAndRefresh();
                     showToast('已順利從firebase載入最新題庫!', 'success');
                 } else {
                     showToast('Firebase 雲端目前尚無數據', 'info');
