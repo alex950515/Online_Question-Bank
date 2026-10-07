@@ -713,7 +713,7 @@ Win32 API
         }
 
         /**
-         * 專用測驗成績過濾解析演算法（支援母子類別）
+         * 專用測驗成績過濾解析演算法（支援無題目開頭、同行混排成績單格式）
          */
         function parseAndImportText() {
             const rawText = document.getElementById('importTextarea').value.trim();
@@ -725,115 +725,152 @@ Win32 API
                 return;
             }
 
-            const lines = rawText.split('\n');
+            // 將關鍵標記（題目、你的答案、正確答案、得分）替換為獨立 Token，解決單一行混在一起複製的問題
+            let processed = rawText
+                .replace(/題目[：:]/g, '\n[KEY_QUESTION]\n')
+                .replace(/你的答案[：:]/g, '\n[KEY_YOUR_ANS]\n')
+                .replace(/正確答案[：:]/g, '\n[KEY_CORRECT_ANS]\n')
+                .replace(/得分[：:]/g, '\n[KEY_SCORE]\n');
+
+            const lines = processed.split('\n');
+
             const parsedQuestions = [];
-            
-            let currentQuestion = null;
-            let currentMode = 'NONE';
+            let currentQ = null;
+            let currentMode = 'NONE'; // 'QUESTION', 'YOUR_ANS', 'CORRECT_ANS', 'SCORE', 'AFTER_SCORE', 'NONE'
 
-            const ignoreRegex = /^(你的答案[：:]|得分[：:]|\d+\s*\/\s*\d+)/i;
-            const newQuestionHeaderRegex = /^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)/i;
-
-            function finalizeCurrentQuestion() {
-                if (!currentQuestion) return;
-
-                currentQuestion.question = currentQuestion.question.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
+            function finalizeQ() {
+                if (!currentQ) return;
                 
-                currentQuestion.answers = currentQuestion.answers
-                    .map(a => a.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim())
-                    .filter(a => a.length > 0);
+                let qText = currentQ.questionLines.join('\n').trim();
+                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
 
-                if (currentQuestion.question) {
-                    if (currentQuestion.answers.length === 0) {
-                        currentQuestion.answers = ['(未提供正確答案)'];
-                    }
-                    parsedQuestions.push(currentQuestion);
+                let ansList = [];
+                let rawAnsBlock = currentQ.answerLines.join('\n').trim();
+                if (rawAnsBlock) {
+                    const linesAns = rawAnsBlock.split('\n').map(a => a.trim()).filter(a => a.length > 0);
+                    linesAns.forEach(a => {
+                        const cleaned = a.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim();
+                        if (cleaned) ansList.push(cleaned);
+                    });
                 }
-                currentQuestion = null;
+
+                if (qText) {
+                    currentQ.question = qText;
+                    currentQ.answers = ansList.length > 0 ? ansList : ['(未提供正確答案)'];
+                    parsedQuestions.push({
+                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 100000) + '_' + parsedQuestions.length,
+                        type: '一般題',
+                        category: category,
+                        subcategory: subcategory,
+                        question: currentQ.question,
+                        answers: currentQ.answers,
+                        image: ''
+                    });
+                }
+                currentQ = null;
                 currentMode = 'NONE';
             }
 
+            function createNewQ() {
+                finalizeQ();
+                currentQ = {
+                    questionLines: [],
+                    answerLines: []
+                };
+                currentMode = 'QUESTION';
+            }
+
             for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
+                let line = lines[i].trim();
                 if (!line) continue;
 
-                if (ignoreRegex.test(line)) {
-                    currentMode = 'NONE';
+                if (line === '[KEY_QUESTION]') {
+                    createNewQ();
                     continue;
                 }
 
-                const isNewQuestionHeader = newQuestionHeaderRegex.test(line);
+                if (line === '[KEY_YOUR_ANS]') {
+                    currentMode = 'YOUR_ANS';
+                    continue;
+                }
 
-                if (isNewQuestionHeader) {
-                    if (currentQuestion) {
-                        finalizeCurrentQuestion();
+                if (line === '[KEY_CORRECT_ANS]') {
+                    currentMode = 'CORRECT_ANS';
+                    continue;
+                }
+
+                if (line === '[KEY_SCORE]') {
+                    currentMode = 'SCORE';
+                    continue;
+                }
+
+                if (currentMode === 'SCORE') {
+                    // 比對得分數字如 "1 / 1" 或 "0 / 3"
+                    let scoreMatch = line.match(/^(\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?|\d+)(.*)/);
+                    if (scoreMatch) {
+                        let remaining = (scoreMatch[4] || '').trim();
+                        if (remaining) {
+                            createNewQ();
+                            currentQ.questionLines.push(remaining);
+                        } else {
+                            currentMode = 'AFTER_SCORE';
+                        }
+                        continue;
+                    } else {
+                        createNewQ();
+                        currentQ.questionLines.push(line);
+                        continue;
                     }
+                }
 
-                    currentQuestion = {
-                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-                        type: '一般題',
-                        category: category,
-                        subcategory: subcategory,
-                        question: line,
-                        answers: [],
-                        image: ''
-                    };
-                    currentMode = 'QUESTION';
+                if (currentMode === 'AFTER_SCORE') {
+                    createNewQ();
+                    currentQ.questionLines.push(line);
                     continue;
                 }
 
-                if (!currentQuestion) {
-                    currentQuestion = {
-                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-                        type: '一般題',
-                        category: category,
-                        subcategory: subcategory,
-                        question: line,
-                        answers: [],
-                        image: ''
-                    };
-                    currentMode = 'QUESTION';
+                if (currentMode === 'NONE') {
+                    createNewQ();
+                    currentQ.questionLines.push(line);
                     continue;
                 }
 
-                if (/^(正確答案[：:])/i.test(line)) {
-                    currentMode = 'CORRECT_ANSWER';
-                    const inlineAns = line.replace(/^(正確答案[：:])\s*/i, '').trim();
-                    if (inlineAns) {
-                        currentQuestion.answers.push(inlineAns);
+                if (currentMode === 'QUESTION') {
+                    const isNumberedHeader = /^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)/i.test(line);
+                    if (isNumberedHeader && currentQ.questionLines.length > 0) {
+                        createNewQ();
                     }
+                    currentQ.questionLines.push(line);
                     continue;
                 }
 
-                if (currentMode === 'CORRECT_ANSWER') {
-                    currentQuestion.answers.push(line);
-                } else if (currentMode === 'QUESTION') {
-                    currentQuestion.answers.push(line);
+                if (currentMode === 'YOUR_ANS') {
+                    continue;
+                }
+
+                if (currentMode === 'CORRECT_ANS') {
+                    currentQ.answerLines.push(line);
+                    continue;
                 }
             }
 
-            finalizeCurrentQuestion();
+            finalizeQ();
 
             if (parsedQuestions.length === 0) {
-                showToast('解析失敗：未偵測到有效題目。請確認包含「題目：」', 'error');
+                showToast('解析失敗：未偵測到有效題目。', 'error');
                 return;
             }
 
-            // 比對重複題目剔除
+            // 比對重複題目剔除 (題目與選項答案完全一致才去重)
             let newAddedCount = 0;
             let duplicateCount = 0;
 
             parsedQuestions.forEach(newQ => {
                 const isDuplicate = window.questionBank.some(existQ => {
-                    // 1. 比對題目文字敘述
                     const sameQuestion = (existQ.question || '').trim().toLowerCase() === (newQ.question || '').trim().toLowerCase();
-                    
-                    // 2. 比對選項/答案內容 (須完全一致)
                     const existAnsStr = (existQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
                     const newAnsStr = (newQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
                     const sameAnswers = existAnsStr === newAnsStr;
-
-                    // 題目與選項答案皆相同才算重複
                     return sameQuestion && sameAnswers;
                 });
 
