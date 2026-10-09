@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雲端題庫檢索與圖片對錯比對系統</title>
+    <title>雲端題庫檢索系統</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -126,7 +126,7 @@
             </div>
             
             <div class="flex items-center gap-2.5">
-                <!-- 題數 Badge -->
+                <!-- 題數 Badge (置於切換鈕左側) -->
                 <span class="inline-flex items-center gap-1.5 bg-sky-950/80 text-sky-100 text-xs px-3 py-1.5 rounded-full font-medium border border-sky-600/40 shadow-sm backdrop-blur-sm">
                     <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
                     <span id="questionCountBadge">0 題</span>
@@ -214,14 +214,15 @@ Win32 API
                 </div>
             </div>
 
+            <!-- 2. 分類階層篩選面板 -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
                 <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
                     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <i class="fa-solid fa-tags text-sky-500 dark:text-sky-400"></i> 分類階層篩選
                     </h2>
                     <button id="toggleReorderBtn" onclick="toggleReorderMode()" class="px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700">
-                        <i id="toggleReorderIcon" class="fa-solid fa-arrows-up-down-left-right text-sky-500"></i>
-                        <span id="toggleReorderText">自訂順序</span>
+                        <i id="toggleReorderIcon" class="fa-solid fa-pen-to-square text-sky-500"></i>
+                        <span id="toggleReorderText">編輯分類</span>
                     </button>
                 </div>
 
@@ -270,6 +271,7 @@ Win32 API
 
         </section>
 
+        <!-- 右側檢索區塊 (搜尋列固定頂部，清單滾動) -->
         <section class="lg:col-span-2 flex flex-col space-y-4 lg:h-full lg:overflow-hidden">
 
             <!-- 搜尋框區域 (固定於頂部) -->
@@ -384,11 +386,11 @@ Win32 API
 
                 <div>
                     <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">題目內容</label>
-                    <textarea id="editQuestionInput" rows="4" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono"></textarea>
+                    <textarea id="editQuestionInput" rows="3" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono"></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">正確答案 (每行一個答案)</label>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">正確答案 (一列一個答案)</label>
                     <textarea id="editAnswersInput" rows="3" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono"></textarea>
                 </div>
             </div>
@@ -398,6 +400,34 @@ Win32 API
                     儲存修改
                 </button>
                 <button onclick="closeEditModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-4 py-2.5 rounded-xl font-semibold transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 類別更名 Modal 彈窗 (獨立層級) -->
+    <div id="renameCategoryModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeRenameModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 id="renameModalTitle" class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯分類名稱
+                </h3>
+                <button onclick="closeRenameModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label id="renameInputLabel" class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">類別名稱</label>
+                    <input type="text" id="renameCategoryInput" onkeydown="if(event.key==='Enter') saveCategoryRename()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-medium">
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-1">
+                <button onclick="saveCategoryRename()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded-xl font-bold shadow-sm transition">
+                    儲存更名
+                </button>
+                <button onclick="closeRenameModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-3.5 py-2 rounded-xl font-semibold transition">
                     取消
                 </button>
             </div>
@@ -441,8 +471,7 @@ Win32 API
                     </span>
                 </div>
 
-                <textarea id="firebaseConfigInput" rows="3" class="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-[11px] font-mono focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder='貼上 config 物件, 例如:
-{"apiKey": "...", "databaseURL": "..."}'></textarea>
+                <textarea id="firebaseConfigInput" rows="3" class="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-[11px] font-mono focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder='貼上 config 物件, 例如:&#10;{"apiKey": "...", "databaseURL": "..."}'></textarea>
 
                 <div class="flex gap-2">
                     <button onclick="setupFirebase()" class="bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs w-full font-semibold shadow-sm transition">
@@ -558,6 +587,7 @@ Win32 API
                     closeImageModal();
                     closeViewImageModal();
                     closeSettingsModal();
+                    closeRenameModal();
                 }
             });
         });
@@ -684,7 +714,6 @@ Win32 API
                 return;
             }
             
-            // HTML 安全字元轉義 + 自動解析 URL 為可點擊的超連結
             const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
             const urlRegex = /(https?:\/\/[^\s<]+)/g;
             const linkedText = escaped.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-sky-600 dark:text-sky-400 underline hover:text-sky-500 font-medium inline-flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>$1</a>');
@@ -733,7 +762,6 @@ Win32 API
                 return;
             }
 
-            // 將關鍵標記（題目、你的答案、正確答案、得分）替換為獨立 Token，解決單一行混在一起複製的問題
             let processed = rawText
                 .replace(/題目[：:]/g, '\n[KEY_QUESTION]\n')
                 .replace(/你的答案[：:]/g, '\n[KEY_YOUR_ANS]\n')
@@ -744,7 +772,7 @@ Win32 API
 
             const parsedQuestions = [];
             let currentQ = null;
-            let currentMode = 'NONE'; // 'QUESTION', 'YOUR_ANS', 'CORRECT_ANS', 'SCORE', 'AFTER_SCORE', 'NONE'
+            let currentMode = 'NONE';
 
             function finalizeQ() {
                 if (!currentQ) return;
@@ -891,68 +919,66 @@ Win32 API
             document.getElementById('importTextarea').value = '';
             saveAndRefresh();
 
-            showToast(`成功新增 ${newAddedCount} 題 (剔除重複 ${duplicateCount} 題)`, 'success');
-        }
-
-        // 取得自訂排序後的母類別列表
-        function getSortedCategories() {
-            const allCats = [...new Set(window.questionBank.map(q => q.category).filter(Boolean))];
-            allCats.forEach(cat => {
-                if (!window.categoryOrder.includes(cat)) {
-                    window.categoryOrder.push(cat);
-                }
-            });
-            window.categoryOrder = window.categoryOrder.filter(cat => allCats.includes(cat));
-            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
-            return window.categoryOrder;
-        }
-
-        // 取得自訂排序後的子類別列表
-        function getSortedSubCategories(parentCat) {
-            const allSubs = [...new Set(window.questionBank
-                .filter(q => q.category === parentCat && q.subcategory)
-                .map(q => q.subcategory))];
-
-            if (!window.subCategoryOrder[parentCat]) {
-                window.subCategoryOrder[parentCat] = [];
+            if (duplicateCount > 0) {
+                showToast(`成功匯入 ${newAddedCount} 題（已自動跳過 ${duplicateCount} 題完全重複項目）`, 'success');
+            } else {
+                showToast(`成功匯入 ${newAddedCount} 道題目！`, 'success');
             }
+        }
 
-            allSubs.forEach(sub => {
-                if (!window.subCategoryOrder[parentCat].includes(sub)) {
-                    window.subCategoryOrder[parentCat].push(sub);
-                }
+        // 中文數字轉換與自然排序比較器
+        function naturalSortCompare(a, b) {
+            const convertChineseNum = (str) => {
+                const chineseNumMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+                return str.replace(/第([一二三四五六七八九十]+)[章節集話]/g, (match, p1) => {
+                    if (chineseNumMap[p1]) return `第${chineseNumMap[p1]}章`;
+                    if (p1.startsWith('十') && p1.length === 2) return `第${10 + chineseNumMap[p1[1]]}章`;
+                    return match;
+                });
+            };
+
+            const normA = convertChineseNum(a);
+            const normB = convertChineseNum(b);
+
+            return normA.localeCompare(normB, 'zh-Hant', { numeric: true, sensitivity: 'base' });
+        }
+
+        function getSortedCategories() {
+            const existingCats = [...new Set(window.questionBank.map(q => q.category).filter(Boolean))];
+            
+            const sorted = [...existingCats].sort((a, b) => {
+                const idxA = window.categoryOrder.indexOf(a);
+                const idxB = window.categoryOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return naturalSortCompare(a, b);
             });
 
-            window.subCategoryOrder[parentCat] = window.subCategoryOrder[parentCat].filter(sub => allSubs.includes(sub));
-            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
-            return window.subCategoryOrder[parentCat];
+            return sorted;
         }
 
-        // 移動母類別順序
-        function moveCategory(index, direction) {
-            const targetIndex = index + direction;
-            if (targetIndex < 0 || targetIndex >= window.categoryOrder.length) return;
-            const temp = window.categoryOrder[index];
-            window.categoryOrder[index] = window.categoryOrder[targetIndex];
-            window.categoryOrder[targetIndex] = temp;
-            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
-            renderCategories();
+        function getSortedSubCategories(parentCat) {
+            const existingSubCats = [...new Set(
+                window.questionBank
+                    .filter(q => q.category === parentCat && q.subcategory)
+                    .map(q => q.subcategory)
+            )];
+
+            const customSubOrder = window.subCategoryOrder[parentCat] || [];
+
+            const sorted = [...existingSubCats].sort((a, b) => {
+                const idxA = customSubOrder.indexOf(a);
+                const idxB = customSubOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return naturalSortCompare(a, b);
+            });
+
+            return sorted;
         }
 
-        // 移動子類別順序
-        function moveSubCategory(parentCat, index, direction) {
-            const list = window.subCategoryOrder[parentCat];
-            if (!list) return;
-            const targetIndex = index + direction;
-            if (targetIndex < 0 || targetIndex >= list.length) return;
-            const temp = list[index];
-            list[index] = list[targetIndex];
-            list[targetIndex] = temp;
-            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
-            renderCategories();
-        }
-
-        // 切換自訂順序模式
         function toggleReorderMode() {
             isReorderingCategories = !isReorderingCategories;
             const btnText = document.getElementById('toggleReorderText');
@@ -960,18 +986,103 @@ Win32 API
             const btn = document.getElementById('toggleReorderBtn');
 
             if (isReorderingCategories) {
-                btnText.innerText = '完成排序';
+                btnText.innerText = '完成編輯';
                 btnIcon.className = 'fa-solid fa-check text-white';
                 btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-amber-500 text-white border-amber-600 shadow-sm';
             } else {
-                btnText.innerText = '自訂順序';
-                btnIcon.className = 'fa-solid fa-arrows-up-down-left-right text-sky-500';
+                btnText.innerText = '編輯分類';
+                btnIcon.className = 'fa-solid fa-pen-to-square text-sky-500';
                 btn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700';
             }
             renderCategories();
         }
 
-        // 渲染雙層分類（母類別 / 子類別）
+        function moveCategory(index, direction) {
+            const categories = getSortedCategories();
+            const targetIdx = index + direction;
+            if (targetIdx < 0 || targetIdx >= categories.length) return;
+
+            window.categoryOrder = [...categories];
+            const item = window.categoryOrder.splice(index, 1)[0];
+            window.categoryOrder.splice(targetIdx, 0, item);
+
+            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+            renderCategories();
+        }
+
+        function moveSubCategory(parentCat, index, direction) {
+            const subcategories = getSortedSubCategories(parentCat);
+            const targetIdx = index + direction;
+            if (targetIdx < 0 || targetIdx >= subcategories.length) return;
+
+            window.subCategoryOrder[parentCat] = [...subcategories];
+            const item = window.subCategoryOrder[parentCat].splice(index, 1)[0];
+            window.subCategoryOrder[parentCat].splice(targetIdx, 0, item);
+
+            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+            renderCategories();
+        }
+
+        // 重新命名母類別
+        function renameCategory(oldName) {
+            const newName = prompt(`請輸入「${oldName}」母類別的新名稱：`, oldName);
+            if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
+            const trimmedNew = newName.trim();
+
+            window.questionBank.forEach(q => {
+                if (q.category === oldName) {
+                    q.category = trimmedNew;
+                }
+            });
+
+            const idx = window.categoryOrder.indexOf(oldName);
+            if (idx !== -1) {
+                window.categoryOrder[idx] = trimmedNew;
+            }
+
+            if (window.subCategoryOrder[oldName]) {
+                window.subCategoryOrder[trimmedNew] = window.subCategoryOrder[oldName];
+                delete window.subCategoryOrder[oldName];
+            }
+
+            if (selectedCategory === oldName) {
+                selectedCategory = trimmedNew;
+            }
+
+            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+            saveAndRefresh();
+            showToast(`母類別已更名為「${trimmedNew}」`, 'success');
+        }
+
+        // 重新命名子類別
+        function renameSubCategory(parentCat, oldSubName) {
+            const newSubName = prompt(`請輸入「${parentCat} ➔ ${oldSubName}」子類別的新名稱：`, oldSubName);
+            if (!newSubName || newSubName.trim() === '' || newSubName.trim() === oldSubName) return;
+            const trimmedNewSub = newSubName.trim();
+
+            window.questionBank.forEach(q => {
+                if (q.category === parentCat && q.subcategory === oldSubName) {
+                    q.subcategory = trimmedNewSub;
+                }
+            });
+
+            if (window.subCategoryOrder[parentCat]) {
+                const sIdx = window.subCategoryOrder[parentCat].indexOf(oldSubName);
+                if (sIdx !== -1) {
+                    window.subCategoryOrder[parentCat][sIdx] = trimmedNewSub;
+                }
+            }
+
+            if (selectedSubCategory === oldSubName) {
+                selectedSubCategory = trimmedNewSub;
+            }
+
+            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+            saveAndRefresh();
+            showToast(`子類別已更名為「${trimmedNewSub}」`, 'success');
+        }
+
         function renderCategories() {
             updateCategoryDatalists();
             const categories = getSortedCategories();
@@ -990,12 +1101,14 @@ Win32 API
             categories.forEach((cat, idx) => {
                 const isActive = cat === selectedCategory;
                 const count = window.questionBank.filter(q => q.category === cat).length;
+                const safeCat = cat.replace(/'/g, "\\'");
 
                 if (isReorderingCategories) {
                     html += `
                         <div class="inline-flex items-center rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
                             <button onclick="moveCategory(${idx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>◀</button>
-                            <span class="px-1.5 font-semibold">${cat}</span>
+                            <span class="px-1 font-semibold">${cat}</span>
+                            <button onclick="openRenameModal('category', '', '${safeCat}')" title="編輯類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
                             <button onclick="moveCategory(${idx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === categories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === categories.length - 1 ? 'disabled' : ''}>▶</button>
                         </div>
                     `;
@@ -1004,10 +1117,10 @@ Win32 API
                         <div class="inline-flex items-center rounded-xl text-xs transition-all ${
                             isActive ? 'bg-sky-500 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
                         }">
-                            <button onclick="filterCategory('${cat}')" class="px-2.5 py-1 font-semibold">
+                            <button onclick="filterCategory('${safeCat}')" class="px-2.5 py-1 font-semibold">
                                 ${cat} (${count})
                             </button>
-                            <button onclick="deleteCategory('${cat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
+                            <button onclick="deleteCategory('${safeCat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
                                 ×
                             </button>
                         </div>
@@ -1037,16 +1150,20 @@ Win32 API
                         </button>
                     `;
 
+                    const safeSelectedCat = selectedCategory.replace(/'/g, "\\'");
+
                     subcategories.forEach((sub, sIdx) => {
                         const isSubActive = sub === selectedSubCategory;
                         const subCount = window.questionBank.filter(q => q.category === selectedCategory && q.subcategory === sub).length;
+                        const safeSub = sub.replace(/'/g, "\\'");
 
                         if (isReorderingCategories) {
                             subHtml += `
                                 <div class="inline-flex items-center rounded-lg text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
-                                    <button onclick="moveSubCategory('${selectedCategory}', ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
-                                    <span class="px-1.5 font-semibold">${sub}</span>
-                                    <button onclick="moveSubCategory('${selectedCategory}', ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
+                                    <button onclick="moveSubCategory('${safeSelectedCat}', ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
+                                    <span class="px-1 font-semibold">${sub}</span>
+                                    <button onclick="openRenameModal('subcategory', '${safeSelectedCat}', '${safeSub}')" title="編輯子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                    <button onclick="moveSubCategory('${safeSelectedCat}', ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
                                 </div>
                             `;
                         } else {
@@ -1054,10 +1171,10 @@ Win32 API
                                 <div class="inline-flex items-center rounded-lg text-xs transition ${
                                     isSubActive ? 'bg-sky-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }">
-                                    <button onclick="filterSubCategory('${sub}')" class="px-2 py-0.5 font-semibold">
+                                    <button onclick="filterSubCategory('${safeSub}')" class="px-2 py-0.5 font-semibold">
                                         ${sub} (${subCount})
                                     </button>
-                                    <button onclick="deleteSubCategory('${selectedCategory}', '${sub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
+                                    <button onclick="deleteSubCategory('${safeSelectedCat}', '${safeSub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
                                         ×
                                     </button>
                                 </div>
@@ -1072,50 +1189,107 @@ Win32 API
             }
         }
 
-        function filterCategory(cat) {
-            selectedCategory = cat;
-            selectedSubCategory = 'ALL';
-            renderCategories();
-            performSearch();
+        let currentRenameInfo = null;
+
+        function openRenameModal(type, parentCat, oldName) {
+            currentRenameInfo = { type, parentCat, oldName };
+            const modal = document.getElementById('renameCategoryModal');
+            const titleEl = document.getElementById('renameModalTitle');
+            const labelEl = document.getElementById('renameInputLabel');
+            const inputEl = document.getElementById('renameCategoryInput');
+
+            if (type === 'category') {
+                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯母類別名稱`;
+                labelEl.innerText = `原名稱：「${oldName}」`;
+            } else {
+                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯子類別名稱`;
+                labelEl.innerText = `母類別：${parentCat} ➔ 原名稱：「${oldName}」`;
+            }
+
+            inputEl.value = oldName;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                inputEl.focus();
+                inputEl.select();
+            }, 50);
         }
 
-        function filterSubCategory(sub) {
-            selectedSubCategory = sub;
-            renderCategories();
-            performSearch();
+        function closeRenameModal() {
+            const modal = document.getElementById('renameCategoryModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            currentRenameInfo = null;
         }
 
-        function deleteCategory(categoryName) {
-            const count = window.questionBank.filter(q => q.category === categoryName).length;
-            showConfirm(
-                '刪除母類別',
-                `確定要刪除「${categoryName}」母類別及其底下的 ${count} 道題目嗎？`,
-                () => {
-                    window.questionBank = window.questionBank.filter(q => q.category !== categoryName);
-                    if (selectedCategory === categoryName) {
-                        selectedCategory = 'ALL';
-                        selectedSubCategory = 'ALL';
+        function saveCategoryRename() {
+            if (!currentRenameInfo) return;
+            const inputEl = document.getElementById('renameCategoryInput');
+            const newName = inputEl.value.trim();
+
+            if (!newName) {
+                showToast('類別名稱不能為空！', 'error');
+                return;
+            }
+
+            const { type, parentCat, oldName } = currentRenameInfo;
+
+            if (newName === oldName) {
+                closeRenameModal();
+                return;
+            }
+
+            if (type === 'category') {
+                window.questionBank.forEach(q => {
+                    if (q.category === oldName) {
+                        q.category = newName;
                     }
-                    saveAndRefresh();
-                    showToast(`已刪除「${categoryName}」類別`, 'info');
-                }
-            );
-        }
+                });
 
-        function deleteSubCategory(parentCategory, subCategoryName) {
-            const count = window.questionBank.filter(q => q.category === parentCategory && q.subcategory === subCategoryName).length;
-            showConfirm(
-                '刪除子類別',
-                `確定要刪除「${parentCategory} ➔ ${subCategoryName}」子類別下的 ${count} 道題目嗎？`,
-                () => {
-                    window.questionBank = window.questionBank.filter(q => !(q.category === parentCategory && q.subcategory === subCategoryName));
-                    if (selectedSubCategory === subCategoryName) {
-                        selectedSubCategory = 'ALL';
-                    }
-                    saveAndRefresh();
-                    showToast(`已刪除「${subCategoryName}」子類別`, 'info');
+                const idx = window.categoryOrder.indexOf(oldName);
+                if (idx !== -1) {
+                    window.categoryOrder[idx] = newName;
                 }
-            );
+
+                if (window.subCategoryOrder[oldName]) {
+                    window.subCategoryOrder[newName] = window.subCategoryOrder[oldName];
+                    delete window.subCategoryOrder[oldName];
+                }
+
+                if (selectedCategory === oldName) {
+                    selectedCategory = newName;
+                }
+
+                localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
+                localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+                saveAndRefresh();
+                showToast(`母類別已更名為「${newName}」`, 'success');
+            } else {
+                window.questionBank.forEach(q => {
+                    if (q.category === parentCat && q.subcategory === oldName) {
+                        q.subcategory = newName;
+                    }
+                });
+
+                if (window.subCategoryOrder[parentCat]) {
+                    const sIdx = window.subCategoryOrder[parentCat].indexOf(oldName);
+                    if (sIdx !== -1) {
+                        window.subCategoryOrder[parentCat][sIdx] = newName;
+                    }
+                }
+
+                if (selectedSubCategory === oldName) {
+                    selectedSubCategory = newName;
+                }
+
+                localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
+                saveAndRefresh();
+                showToast(`子類別已更名為「${newName}」`, 'success');
+            }
+
+            closeRenameModal();
         }
 
         // 動態更新母子類別選單 (Datalist)
