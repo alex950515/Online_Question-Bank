@@ -979,6 +979,52 @@ Win32 API
             return sorted;
         }
 
+        // 分類點擊篩選函式
+        function filterCategory(cat) {
+            selectedCategory = cat;
+            selectedSubCategory = 'ALL';
+            renderCategories();
+            performSearch();
+        }
+
+        function filterSubCategory(sub) {
+            selectedSubCategory = sub;
+            renderCategories();
+            performSearch();
+        }
+
+        // 刪除分類及其所有題目
+        function deleteCategory(cat) {
+            showConfirm(
+                '刪除母類別',
+                `確定要刪除「${cat}」母類別及其所有題目嗎？此操作無法復原。`,
+                () => {
+                    window.questionBank = window.questionBank.filter(q => q.category !== cat);
+                    if (selectedCategory === cat) {
+                        selectedCategory = 'ALL';
+                        selectedSubCategory = 'ALL';
+                    }
+                    saveAndRefresh();
+                    showToast(`已刪除母類別「${cat}」及相關題目`, 'info');
+                }
+            );
+        }
+
+        function deleteSubCategory(parentCat, subCat) {
+            showConfirm(
+                '刪除子類別',
+                `確定要刪除「${parentCat} ➔ ${subCat}」子類別及其所有題目嗎？此操作無法復原。`,
+                () => {
+                    window.questionBank = window.questionBank.filter(q => !(q.category === parentCat && q.subcategory === subCat));
+                    if (selectedSubCategory === subCat) {
+                        selectedSubCategory = 'ALL';
+                    }
+                    saveAndRefresh();
+                    showToast(`已刪除子類別「${subCat}」及相關題目`, 'info');
+                }
+            );
+        }
+
         function toggleReorderMode() {
             isReorderingCategories = !isReorderingCategories;
             const btnText = document.getElementById('toggleReorderText');
@@ -1101,14 +1147,14 @@ Win32 API
             categories.forEach((cat, idx) => {
                 const isActive = cat === selectedCategory;
                 const count = window.questionBank.filter(q => q.category === cat).length;
-                const safeCat = cat.replace(/'/g, "\\'");
+                const safeCat = encodeURIComponent(cat);
 
                 if (isReorderingCategories) {
                     html += `
                         <div class="inline-flex items-center rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
                             <button onclick="moveCategory(${idx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>◀</button>
                             <span class="px-1 font-semibold">${cat}</span>
-                            <button onclick="openRenameModal('category', '', '${safeCat}')" title="編輯類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                            <button onclick="openRenameModal('category', '', decodeURIComponent('${safeCat}'))" title="編輯類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
                             <button onclick="moveCategory(${idx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === categories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === categories.length - 1 ? 'disabled' : ''}>▶</button>
                         </div>
                     `;
@@ -1117,10 +1163,10 @@ Win32 API
                         <div class="inline-flex items-center rounded-xl text-xs transition-all ${
                             isActive ? 'bg-sky-500 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
                         }">
-                            <button onclick="filterCategory('${safeCat}')" class="px-2.5 py-1 font-semibold">
+                            <button onclick="filterCategory(decodeURIComponent('${safeCat}'))" class="px-2.5 py-1 font-semibold">
                                 ${cat} (${count})
                             </button>
-                            <button onclick="deleteCategory('${safeCat}')" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
+                            <button onclick="deleteCategory(decodeURIComponent('${safeCat}'))" title="刪除母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-500 font-bold">
                                 ×
                             </button>
                         </div>
@@ -1150,20 +1196,20 @@ Win32 API
                         </button>
                     `;
 
-                    const safeSelectedCat = selectedCategory.replace(/'/g, "\\'");
+                    const safeSelectedCat = encodeURIComponent(selectedCategory);
 
                     subcategories.forEach((sub, sIdx) => {
                         const isSubActive = sub === selectedSubCategory;
                         const subCount = window.questionBank.filter(q => q.category === selectedCategory && q.subcategory === sub).length;
-                        const safeSub = sub.replace(/'/g, "\\'");
+                        const safeSub = encodeURIComponent(sub);
 
                         if (isReorderingCategories) {
                             subHtml += `
                                 <div class="inline-flex items-center rounded-lg text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
-                                    <button onclick="moveSubCategory('${safeSelectedCat}', ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
+                                    <button onclick="moveSubCategory(decodeURIComponent('${safeSelectedCat}'), ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
                                     <span class="px-1 font-semibold">${sub}</span>
-                                    <button onclick="openRenameModal('subcategory', '${safeSelectedCat}', '${safeSub}')" title="編輯子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
-                                    <button onclick="moveSubCategory('${safeSelectedCat}', ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
+                                    <button onclick="openRenameModal('subcategory', decodeURIComponent('${safeSelectedCat}'), decodeURIComponent('${safeSub}'))" title="編輯子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                    <button onclick="moveSubCategory(decodeURIComponent('${safeSelectedCat}'), ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
                                 </div>
                             `;
                         } else {
@@ -1171,10 +1217,10 @@ Win32 API
                                 <div class="inline-flex items-center rounded-lg text-xs transition ${
                                     isSubActive ? 'bg-sky-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }">
-                                    <button onclick="filterSubCategory('${safeSub}')" class="px-2 py-0.5 font-semibold">
+                                    <button onclick="filterSubCategory(decodeURIComponent('${safeSub}'))" class="px-2 py-0.5 font-semibold">
                                         ${sub} (${subCount})
                                     </button>
-                                    <button onclick="deleteSubCategory('${safeSelectedCat}', '${safeSub}')" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
+                                    <button onclick="deleteSubCategory(decodeURIComponent('${safeSelectedCat}'), decodeURIComponent('${safeSub}'))" title="刪除此子類別全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">
                                         ×
                                     </button>
                                 </div>
