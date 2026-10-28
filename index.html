@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>雲端題庫檢索系統</title>
+    <title>雲端題庫檢索與圖片對錯比對系統</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -901,11 +901,13 @@ Win32 API
 
             parsedQuestions.forEach(newQ => {
                 const isDuplicate = window.questionBank.some(existQ => {
+                    const sameCategory = (existQ.category || '').trim().toLowerCase() === (newQ.category || '').trim().toLowerCase();
+                    const sameSubCategory = (existQ.subcategory || '').trim().toLowerCase() === (newQ.subcategory || '').trim().toLowerCase();
                     const sameQuestion = (existQ.question || '').trim().toLowerCase() === (newQ.question || '').trim().toLowerCase();
                     const existAnsStr = (existQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
                     const newAnsStr = (newQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
                     const sameAnswers = existAnsStr === newAnsStr;
-                    return sameQuestion && sameAnswers;
+                    return sameCategory && sameSubCategory && sameQuestion && sameAnswers;
                 });
 
                 if (isDuplicate) {
@@ -1751,9 +1753,11 @@ Win32 API
             const uniqueMap = new Map();
 
             window.questionBank.forEach(q => {
+                const catKey = (q.category || '').trim().toLowerCase();
+                const subCatKey = (q.subcategory || '').trim().toLowerCase();
                 const qKey = (q.question || '').trim().toLowerCase();
                 const aKey = (q.answers || []).map(a => a.trim().toLowerCase()).join('|||');
-                const combinedKey = `${qKey}___${aKey}`;
+                const combinedKey = `${catKey}___${subCatKey}___${qKey}___${aKey}`;
 
                 if (!uniqueMap.has(combinedKey)) {
                     uniqueMap.set(combinedKey, q);
