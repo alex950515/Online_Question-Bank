@@ -34,7 +34,7 @@
     
     <!-- Firebase SDK (v9 模組化 CDN) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
         import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
         window.initializeApp = initializeApp;
@@ -45,8 +45,13 @@
 
         window.initFirebase = function(config) {
             try {
-                const app = initializeApp(config);
+                if (!config || typeof config !== 'object') return false;
+                if (!config.databaseURL && config.projectId) {
+                    config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
+                }
+                const app = getApps().length ? getApp() : initializeApp(config);
                 window.db = getDatabase(app);
+                window.firebaseActiveConfig = config;
                 return true;
             } catch (err) {
                 console.error("Firebase 配置失敗:", err);
@@ -107,6 +112,16 @@
             opacity: 0 !important;
             -webkit-appearance: none;
         }
+
+        /* 隱藏 number input 原生預設上下箭頭，改用自訂精緻加減按鈕 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
     </style>
 </head>
 <body class="bg-slate-100/70 dark:bg-slate-950 min-h-screen text-slate-700 dark:text-slate-200 font-sans antialiased selection:bg-sky-300 selection:text-sky-950 transition-colors duration-200">
@@ -126,7 +141,19 @@
             </div>
             
             <div class="flex items-center gap-2.5">
-                <!-- 題數 Badge (置於切換鈕左側) -->
+                <!-- 模式切換按鈕：題庫總覽 / 測驗模式 -->
+                <div class="inline-flex items-center bg-sky-950/90 p-1 rounded-xl border border-sky-600/40 shadow-inner" role="group" aria-label="系統模式切換">
+                    <button id="modeOverviewBtn" onclick="switchSystemMode('overview')" class="px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span>題庫總覽</span>
+                    </button>
+                    <button id="modeQuizBtn" onclick="switchSystemMode('quiz')" class="px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-ruler"></i>
+                        <span>測驗模式</span>
+                    </button>
+                </div>
+
+                <!-- 題數 Badge -->
                 <span class="inline-flex items-center gap-1.5 bg-sky-950/80 text-sky-100 text-xs px-3 py-1.5 rounded-full font-medium border border-sky-600/40 shadow-sm backdrop-blur-sm">
                     <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
                     <span id="questionCountBadge">0 題</span>
@@ -147,7 +174,8 @@
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
+    <!-- 題庫總覽主畫面 -->
+    <main id="overviewMainView" class="max-w-6xl mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
 
         <!-- 左側控制面板（獨立滾動） -->
         <section class="lg:col-span-1 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
@@ -342,47 +370,170 @@ Win32 API
 
     </main>
 
-    <!-- 題目圖片編輯 Modal 彈窗 -->
+    <!-- 獨立測驗模式主畫面 (預設隱藏，與題庫總覽完全獨立) -->
+    <main id="quizMainView" class="hidden max-w-6xl mx-auto px-4 py-5 grid-cols-1 lg:grid-cols-3 gap-6 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
+        
+        <!-- 左側：獨立測驗題庫匯入與分類篩選 -->
+        <section class="lg:col-span-1 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
+            
+            <!-- 1. 測驗題庫獨立匯入面板 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-file-import text-indigo-500 dark:text-indigo-400"></i> 測驗題庫匯入
+                    </h2>
+                    <span class="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-semibold border border-indigo-100 dark:border-indigo-800/50">獨立題庫 · 含選項解析</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別名稱</label>
+                        <div class="relative group">
+                            <input type="text" id="quizCategoryNameInput" list="quizCategoriesDatalist" oninput="updateQuizSubCategoryDatalist()" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none" placeholder="輸入母類別名稱">
+                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <datalist id="quizCategoriesDatalist"></datalist>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別名稱 (單元)</label>
+                        <div class="relative group">
+                            <input type="text" id="quizSubCategoryNameInput" list="quizSubCategoriesDatalist" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none" placeholder="輸入單元名稱">
+                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <datalist id="quizSubCategoriesDatalist"></datalist>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">貼上題目或上傳 .txt 題庫檔</label>
+                        <label class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-semibold cursor-pointer flex items-center gap-1">
+                            <i class="fa-solid fa-folder-open"></i> 載入 .txt 檔
+                            <input type="file" id="quizTxtFileInput" accept=".txt" class="hidden" onchange="handleQuizTxtFileUpload(event)">
+                        </label>
+                    </div>
+                    <textarea id="quizImportTextarea" rows="6" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none font-mono leading-relaxed" placeholder="支援貼上包含「題目：、選項：A. B. C. D.、正確答案：」或填空題 [__1__] 之格式，亦可直接點擊右上角載入 .txt 檔案..."></textarea>
+                </div>
+
+                <div class="flex flex-wrap gap-2 pt-1">
+                    <button onclick="parseAndImportQuizBank()" class="flex-1 bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> 匯入測驗題庫
+                    </button>
+                    <button onclick="clearQuizBank()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition">
+                        清空測驗題庫
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 測驗單元分類選擇（與題目總覽相同分類階層模式） -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
+                <div class="flex flex-wrap justify-between items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-indigo-500 dark:text-indigo-400"></i> 選擇測驗單元
+                    </h2>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" id="quizPushCloudBtn" onclick="uploadToFirebase()" title="推送測驗題庫與紀錄至雲端" class="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 transition flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>
+                        </button>
+                        <button type="button" id="quizPullCloudBtn" onclick="downloadFromFirebase()" title="從雲端拉取測驗題庫與紀錄" class="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/70 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/60 transition flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取</span>
+                        </button>
+                        <span id="quizBankTotalBadge" class="text-[11px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">測驗庫 0 題</span>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">母類別 (Parent)</p>
+                    <div id="quizCategoryList" class="flex flex-wrap gap-1.5">
+                        <!-- 動態渲染測驗母類別 -->
+                    </div>
+                </div>
+
+                <div id="quizSubCategorySection" class="hidden pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">子類別單元 (Subcategory)</p>
+                    <div id="quizSubCategoryList" class="flex flex-wrap gap-1.5">
+                        <!-- 動態渲染測驗子類別 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 測驗歷史成績紀錄面板 -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-indigo-500 dark:text-indigo-400"></i> 測驗歷史紀錄
+                    </h2>
+                    <button onclick="clearQuizHistory()" class="text-[11px] text-slate-400 hover:text-rose-500 font-semibold transition">
+                        清除紀錄
+                    </button>
+                </div>
+                <div id="quizHistorySidebarList" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <!-- 動態渲染歷次成績紀錄 -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 右側：測驗進行區 / 設定面板 / 成績報告與錯題檢視 -->
+        <section id="quizWorkspaceContainer" class="lg:col-span-2 flex flex-col space-y-4 lg:h-full lg:overflow-y-auto lg:pr-1.5 pb-6">
+            <!-- 由 renderQuizWorkspace() 動態渲染 -->
+        </section>
+
+    </main>
+
+    <!-- 圖片上傳 / 剪貼簿貼上 Modal 彈窗 -->
     <div id="imageModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeImageModal()">
         <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                 <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <i class="fa-regular fa-image text-sky-500 dark:text-sky-400"></i> 編輯題目圖片
+                    <i class="fa-regular fa-image text-sky-500 dark:text-sky-400"></i> 題目圖片編輯
                 </h3>
                 <button onclick="closeImageModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
             </div>
 
             <div class="space-y-3">
-                <div id="modalPasteArea" tabindex="0" class="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-sky-500 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-50/80 dark:bg-slate-800/50 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-400/30">
-                    <i class="fa-regular fa-clipboard text-3xl text-sky-500 dark:text-sky-400 mb-2"></i>
-                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">開啟此視窗後，直接按下 <kbd class="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-md text-[11px] font-mono shadow-sm">Ctrl + V</kbd> 貼上</p>
-                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">或點擊下方按鈕讀取剪貼簿 / 上傳檔案</p>
+                <div id="modalPasteArea" tabindex="0" class="w-full h-32 border-2 border-dashed border-sky-200 dark:border-sky-800/80 rounded-2xl bg-sky-50/40 dark:bg-sky-950/30 hover:bg-sky-50 dark:hover:bg-sky-950/50 focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900/40 focus:outline-none flex flex-col items-center justify-center p-4 text-center cursor-pointer transition group">
+                    <div class="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/80 text-sky-600 dark:text-sky-300 flex items-center justify-center mb-1.5 group-hover:scale-110 transition">
+                        <i class="fa-regular fa-paste text-lg"></i>
+                    </div>
+                    <p class="text-xs font-bold text-sky-900 dark:text-sky-200">直接按 Ctrl + V 貼上截圖</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">點擊此框確保焦點，或支援直接拖曳/貼上圖片</p>
                 </div>
 
-                <div class="flex justify-center gap-2">
-                    <button onclick="readClipboardImage()" class="bg-sky-500 hover:bg-sky-600 text-white text-xs px-3.5 py-2 rounded-xl font-semibold transition flex items-center gap-1.5 shadow-sm">
-                        <i class="fa-regular fa-paste"></i> 讀取剪貼簿圖片
+                <div class="flex justify-center">
+                    <button type="button" onclick="readClipboardImage()" class="text-xs bg-sky-100/80 dark:bg-sky-950/80 hover:bg-sky-200/80 dark:hover:bg-sky-900/80 text-sky-800 dark:text-sky-200 font-semibold py-2 px-4 rounded-xl flex items-center gap-1.5 transition shadow-xs">
+                        <i class="fa-solid fa-clipboard-check"></i> 從剪貼簿讀取圖片
                     </button>
-                    <label class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs px-3.5 py-2 rounded-xl font-semibold cursor-pointer transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-folder-open text-sky-500 dark:text-sky-400"></i> 從電腦選擇
-                        <input type="file" id="modalImageFileInput" accept="image/*" class="hidden">
-                    </label>
                 </div>
 
-                <div id="modalImagePreviewContainer" class="hidden space-y-1">
-                    <p class="text-xs font-medium text-slate-500 dark:text-slate-400">預覽：</p>
-                    <div class="relative max-h-48 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-2">
-                        <img id="modalImagePreview" src="" alt="預覽圖片" class="max-h-44 object-contain rounded-lg">
+                <div class="relative flex py-1 items-center">
+                    <div class="flex-grow border-t border-slate-200/80 dark:border-slate-700"></div>
+                    <span class="flex-shrink mx-3 text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold tracking-wider">或者選擇本地檔案</span>
+                    <div class="flex-grow border-t border-slate-200/80 dark:border-slate-700"></div>
+                </div>
+
+                <div>
+                    <input type="file" id="modalImageFileInput" accept="image/*" class="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700 transition cursor-pointer">
+                </div>
+
+                <div id="modalImagePreviewContainer" class="hidden pt-1">
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5">圖片預覽：</p>
+                    <div class="p-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+                        <img id="modalImagePreview" src="" class="max-h-40 mx-auto rounded-xl object-contain">
                     </div>
                 </div>
             </div>
 
             <div class="flex gap-2 pt-2">
-                <button onclick="saveQuestionImage()" class="flex-1 bg-sky-400 hover:bg-sky-500 text-slate-950 text-xs py-2.5 rounded-xl font-bold shadow-sm transition">
+                <button onclick="saveQuestionImage()" class="flex-1 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-600 hover:to-sky-500 text-slate-950 text-xs py-2.5 rounded-xl font-bold shadow-sm transition">
                     儲存圖片
                 </button>
-                <button onclick="removeQuestionImage()" class="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs px-3.5 py-2.5 rounded-xl font-semibold transition">
-                    刪除圖片
+                <button onclick="removeQuestionImage()" class="bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 text-xs px-3.5 py-2.5 rounded-xl font-semibold transition">
+                    移除圖片
                 </button>
                 <button onclick="closeImageModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-3.5 py-2.5 rounded-xl font-semibold transition">
                     取消
@@ -391,22 +542,22 @@ Win32 API
         </div>
     </div>
 
-    <!-- 圖片大圖檢視 Modal 彈窗 (本頁內放大) -->
-    <div id="viewImageModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-[60] p-4 cursor-zoom-out" onclick="closeViewImageModal()">
-        <div class="relative max-w-4xl max-h-[90vh] w-full p-3 bg-white/10 dark:bg-slate-900/40 rounded-3xl backdrop-blur-xl border border-white/20 dark:border-slate-700/50 flex flex-col items-center shadow-2xl cursor-default animate-modal" onclick="event.stopPropagation()">
-            <button onclick="closeViewImageModal()" class="absolute -top-3 -right-3 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-rose-600 rounded-full w-9 h-9 flex items-center justify-center text-xl font-bold shadow-xl transition">×</button>
-            <div class="overflow-auto max-h-[82vh] w-full flex items-center justify-center p-2">
-                <img id="fullImageView" src="" class="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-lg">
-            </div>
+    <!-- 檢視大圖 Modal -->
+    <div id="viewImageModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeViewImageModal()">
+        <div class="relative max-w-4xl max-h-[90vh] flex flex-col items-center animate-modal">
+            <img id="fullImageView" src="" class="max-h-[85vh] max-w-full rounded-2xl shadow-2xl object-contain border border-white/10">
+            <button onclick="closeViewImageModal()" class="mt-4 bg-white/15 hover:bg-white/25 backdrop-blur-md text-white px-5 py-2 rounded-full text-xs font-semibold transition border border-white/20">
+                關閉檢視
+            </button>
         </div>
     </div>
 
-    <!-- 題目文字內文編輯 Modal 彈窗 -->
+    <!-- 編輯題目與答案 Modal 彈窗 -->
     <div id="editQuestionModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeEditModal()">
         <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                 <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                    <i class="fa-regular fa-pen-to-square text-amber-600 dark:text-amber-400"></i> 編輯題目內文與答案
+                    <i class="fa-regular fa-pen-to-square text-amber-500"></i> 編輯題目與答案
                 </h3>
                 <button onclick="closeEditModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
             </div>
@@ -414,11 +565,11 @@ Win32 API
             <div class="space-y-3">
                 <div class="grid grid-cols-2 gap-2.5">
                     <div>
-                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別名稱</label>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別</label>
                         <input type="text" id="editCategoryInput" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none">
                     </div>
                     <div>
-                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別名稱</label>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別</label>
                         <input type="text" id="editSubCategoryInput" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none">
                     </div>
                 </div>
@@ -519,11 +670,11 @@ Win32 API
                 </div>
 
                 <div class="grid grid-cols-2 gap-2 pt-1">
-                    <button onclick="uploadToFirebase()" class="bg-sky-600 dark:bg-sky-700 hover:bg-sky-700 dark:hover:bg-sky-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> 推送雲端
+                    <button type="button" id="settingsPushCloudBtn" onclick="uploadToFirebase()" class="bg-sky-600 dark:bg-sky-700 hover:bg-sky-700 dark:hover:bg-sky-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>
                     </button>
-                    <button onclick="downloadFromFirebase()" class="bg-teal-600 dark:bg-teal-700 hover:bg-teal-700 dark:hover:bg-teal-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> 拉取雲端
+                    <button type="button" id="settingsPullCloudBtn" onclick="downloadFromFirebase()" class="bg-teal-600 dark:bg-teal-700 hover:bg-teal-700 dark:hover:bg-teal-600 text-white py-1.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取雲端</span>
                     </button>
                 </div>
             </div>
@@ -593,16 +744,32 @@ Win32 API
         let isEditingNotes = false;
         let isReorderingCategories = false;
 
+        // ===== 獨立測驗模式狀態與資料儲存 (與題庫總覽完全隔離) =====
+        window.quizBank = JSON.parse(localStorage.getItem('independent_quiz_bank_v1')) || [];
+        window.quizHistory = JSON.parse(localStorage.getItem('independent_quiz_history_v1')) || [];
+        let currentSystemMode = 'overview'; // 'overview' | 'quiz'
+        let quizSelectedCategory = 'ALL';
+        let quizSelectedSubCategory = 'ALL';
+        let activeQuizSession = null; // 儲存當前正在進行或剛結束的測驗狀態
+
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
             saveAndRefresh();
             loadPracticeNotes();
+            refreshQuizModeUI();
             
-            // 自動嘗試載入先前儲存的 Firebase 配置
+            // 自動嘗試載入先前儲存的 Firebase 配置（若模組尚未完成掛載則短暫延遲重試）
             const savedConfig = localStorage.getItem('firebase_config_cache');
             if (savedConfig) {
                 document.getElementById('firebaseConfigInput').value = savedConfig;
-                setupFirebase(true);
+                const tryAutoConnect = (retries = 10) => {
+                    if (typeof window.initFirebase === 'function') {
+                        setupFirebase(true);
+                    } else if (retries > 0) {
+                        setTimeout(() => tryAutoConnect(retries - 1), 150);
+                    }
+                };
+                tryAutoConnect();
             }
 
             // 綁定全域貼上事件，確保開啟彈窗時按 Ctrl+V 都能擷取圖片
@@ -731,9 +898,978 @@ Win32 API
         // 儲存與重新整理
         function saveAndRefresh() {
             localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
-            document.getElementById('questionCountBadge').innerText = `${window.questionBank.length} 題`;
+            if (currentSystemMode === 'overview') {
+                document.getElementById('questionCountBadge').innerText = `${window.questionBank.length} 題`;
+            } else {
+                document.getElementById('questionCountBadge').innerText = `測驗庫 ${window.quizBank.length} 題`;
+            }
             renderCategories();
             performSearch();
+        }
+
+        // ===== 系統模式切換（題庫總覽 <-> 測驗模式） =====
+        function switchSystemMode(mode) {
+            currentSystemMode = mode;
+            const overviewMain = document.getElementById('overviewMainView');
+            const quizMain = document.getElementById('quizMainView');
+            const overviewBtn = document.getElementById('modeOverviewBtn');
+            const quizBtn = document.getElementById('modeQuizBtn');
+            const badge = document.getElementById('questionCountBadge');
+
+            if (mode === 'quiz') {
+                overviewMain.classList.add('hidden');
+                quizMain.classList.remove('hidden');
+                quizMain.classList.add('grid');
+
+                overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
+                quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-400 text-slate-950 shadow-sm transition flex items-center gap-1.5';
+                badge.innerText = `測驗庫 ${window.quizBank.length} 題`;
+                refreshQuizModeUI();
+            } else {
+                quizMain.classList.add('hidden');
+                quizMain.classList.remove('grid');
+                overviewMain.classList.remove('hidden');
+
+                overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5';
+                quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
+                badge.innerText = `${window.questionBank.length} 題`;
+            }
+        }
+
+        // ===== 獨立測驗題庫解析器（支援單選、複選選項 A/B/C/D 與 [__1__] 多空格填空） =====
+        function handleQuizTxtFileUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const textarea = document.getElementById('quizImportTextarea');
+                if (textarea) {
+                    textarea.value = e.target.result;
+                    const subInput = document.getElementById('quizSubCategoryNameInput');
+                    if (subInput && !subInput.value.trim()) {
+                        subInput.value = file.name.replace(/\.txt$/i, '');
+                    }
+                    showToast(`已載入檔案「${file.name}」，請確認類別後點擊「匯入測驗題庫」`, 'info');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseAndImportQuizBank() {
+            const rawText = document.getElementById('quizImportTextarea').value.trim();
+            const category = document.getElementById('quizCategoryNameInput').value.trim() || '未分類';
+            const subcategory = document.getElementById('quizSubCategoryNameInput').value.trim() || '';
+
+            if (!rawText) {
+                showToast('請先貼上測驗題目或載入 .txt 檔案！', 'error');
+                return;
+            }
+
+            let processed = rawText
+                .replace(/\r\n/g, '\n')
+                .replace(/題目[：:]/g, '\n[QZ_QUESTION]\n')
+                .replace(/選項[：:]/g, '\n[QZ_OPTIONS]\n')
+                .replace(/你的答案[：:]/g, '\n[QZ_YOUR_ANS]\n')
+                .replace(/正確答案[：:]/g, '\n[QZ_CORRECT_ANS]\n')
+                .replace(/得分[：:]/g, '\n[QZ_SCORE]\n');
+
+            const lines = processed.split('\n');
+            const parsedList = [];
+            let cur = null;
+            let mode = 'NONE';
+
+            function finalizeQuizItem() {
+                if (!cur) return;
+                let qText = cur.questionLines.join('\n').trim();
+                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
+
+                const options = [];
+                cur.optionLines.forEach(optLine => {
+                    const cleanedOpt = optLine.replace(/^[A-Za-z0-9]+[\.、\)\:]\s*/, '').trim();
+                    if (cleanedOpt) options.push(cleanedOpt);
+                });
+
+                const answers = [];
+                cur.answerLines.forEach(ansLine => {
+                    const cleanedAns = ansLine.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim();
+                    if (cleanedAns) answers.push(cleanedAns);
+                });
+
+                if (qText && answers.length > 0) {
+                    const hasFillBlank = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText);
+                    let qType = 'SINGLE';
+                    if (hasFillBlank) {
+                        qType = 'FILL';
+                    } else if (answers.length > 1) {
+                        qType = 'MULTI';
+                    } else {
+                        qType = 'SINGLE';
+                    }
+
+                    if (qType !== 'FILL' && options.length === 0) {
+                        answers.forEach(a => {
+                            if (!options.includes(a)) options.push(a);
+                        });
+                    }
+
+                    parsedList.push({
+                        id: 'qz_' + Date.now() + '_' + Math.floor(Math.random() * 100000) + '_' + parsedList.length,
+                        category,
+                        subcategory,
+                        qType,
+                        question: qText,
+                        options,
+                        answers
+                    });
+                }
+                cur = null;
+                mode = 'NONE';
+            }
+
+            function startNewQuizItem() {
+                finalizeQuizItem();
+                cur = { questionLines: [], optionLines: [], answerLines: [] };
+                mode = 'QUESTION';
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                if (line === '[QZ_QUESTION]') {
+                    startNewQuizItem();
+                    continue;
+                }
+                if (line === '[QZ_OPTIONS]') {
+                    if (!cur) startNewQuizItem();
+                    mode = 'OPTIONS';
+                    continue;
+                }
+                if (line === '[QZ_YOUR_ANS]') {
+                    mode = 'YOUR_ANS';
+                    continue;
+                }
+                if (line === '[QZ_CORRECT_ANS]') {
+                    if (!cur) startNewQuizItem();
+                    mode = 'CORRECT_ANS';
+                    continue;
+                }
+                if (line === '[QZ_SCORE]') {
+                    mode = 'SCORE';
+                    continue;
+                }
+
+                if (mode === 'SCORE') {
+                    const scoreMatch = line.match(/^(\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?|\d+)(.*)/);
+                    if (scoreMatch) {
+                        const rest = (scoreMatch[4] || '').trim();
+                        if (rest) {
+                            startNewQuizItem();
+                            cur.questionLines.push(rest);
+                        } else {
+                            mode = 'AFTER_SCORE';
+                        }
+                    } else {
+                        startNewQuizItem();
+                        cur.questionLines.push(line);
+                    }
+                    continue;
+                }
+
+                if (mode === 'AFTER_SCORE' || mode === 'NONE') {
+                    startNewQuizItem();
+                    cur.questionLines.push(line);
+                    continue;
+                }
+
+                if (mode === 'QUESTION') {
+                    if (/^[A-H][\.、\)]\s+/.test(line) && cur.questionLines.length > 0) {
+                        mode = 'OPTIONS';
+                        cur.optionLines.push(line);
+                    } else {
+                        cur.questionLines.push(line);
+                    }
+                    continue;
+                }
+
+                if (mode === 'OPTIONS') {
+                    cur.optionLines.push(line);
+                    continue;
+                }
+
+                if (mode === 'YOUR_ANS') {
+                    continue;
+                }
+
+                if (mode === 'CORRECT_ANS') {
+                    cur.answerLines.push(line);
+                    continue;
+                }
+            }
+
+            finalizeQuizItem();
+
+            if (parsedList.length === 0) {
+                showToast('解析失敗：未偵測到有效測驗題目與正確答案。', 'error');
+                return;
+            }
+
+            let addedCount = 0;
+            let skippedCount = 0;
+
+            parsedList.forEach(newItem => {
+                const isDup = window.quizBank.some(ex =>
+                    (ex.category || '').trim().toLowerCase() === newItem.category.trim().toLowerCase() &&
+                    (ex.subcategory || '').trim().toLowerCase() === newItem.subcategory.trim().toLowerCase() &&
+                    (ex.question || '').trim().toLowerCase() === newItem.question.trim().toLowerCase() &&
+                    (ex.answers || []).join('|||').toLowerCase() === newItem.answers.join('|||').toLowerCase()
+                );
+                if (isDup) {
+                    skippedCount++;
+                } else {
+                    window.quizBank.push(newItem);
+                    addedCount++;
+                }
+            });
+
+            document.getElementById('quizImportTextarea').value = '';
+            saveQuizBankAndRefresh();
+
+            if (skippedCount > 0) {
+                showToast(`測驗題庫已匯入 ${addedCount} 題（略過 ${skippedCount} 題重複）`, 'success');
+            } else {
+                showToast(`成功匯入 ${addedCount} 題至獨立測驗題庫！`, 'success');
+            }
+        }
+
+        function saveQuizBankAndRefresh() {
+            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+            if (currentSystemMode === 'quiz') {
+                document.getElementById('questionCountBadge').innerText = `測驗庫 ${window.quizBank.length} 題`;
+            }
+            refreshQuizModeUI();
+        }
+
+        function clearQuizBank() {
+            showConfirm(
+                '清空測驗題庫',
+                '確定要清空所有「獨立測驗題庫」嗎？（不會影響題庫總覽的資料）',
+                () => {
+                    window.quizBank = [];
+                    quizSelectedCategory = 'ALL';
+                    quizSelectedSubCategory = 'ALL';
+                    activeQuizSession = null;
+                    saveQuizBankAndRefresh();
+                    showToast('已清空獨立測驗題庫！', 'info');
+                }
+            );
+        }
+
+        function deleteQuizCategory(cat) {
+            showConfirm(
+                '刪除測驗母類別',
+                `確定要刪除測驗題庫中的「${cat}」母類別及其所有題目嗎？`,
+                () => {
+                    window.quizBank = window.quizBank.filter(q => q.category !== cat);
+                    if (quizSelectedCategory === cat) {
+                        quizSelectedCategory = 'ALL';
+                        quizSelectedSubCategory = 'ALL';
+                    }
+                    saveQuizBankAndRefresh();
+                    showToast(`已刪除測驗母類別「${cat}」`, 'info');
+                }
+            );
+        }
+
+        function deleteQuizSubCategory(parentCat, subCat) {
+            showConfirm(
+                '刪除測驗單元',
+                `確定要刪除測驗題庫中的「${parentCat} ➔ ${subCat}」單元及其所有題目嗎？`,
+                () => {
+                    window.quizBank = window.quizBank.filter(q => !(q.category === parentCat && q.subcategory === subCat));
+                    if (quizSelectedSubCategory === subCat) {
+                        quizSelectedSubCategory = 'ALL';
+                    }
+                    saveQuizBankAndRefresh();
+                    showToast(`已刪除測驗單元「${subCat}」`, 'info');
+                }
+            );
+        }
+
+        function selectQuizCategory(cat) {
+            quizSelectedCategory = cat;
+            quizSelectedSubCategory = 'ALL';
+            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
+                activeQuizSession = null;
+            }
+            refreshQuizModeUI();
+        }
+
+        function selectQuizSubCategory(sub) {
+            quizSelectedSubCategory = sub;
+            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
+                activeQuizSession = null;
+            }
+            refreshQuizModeUI();
+        }
+
+        function updateQuizDatalists() {
+            const cats = [...new Set(window.quizBank.map(q => q.category).filter(Boolean))].sort(naturalSortCompare);
+            const catListEl = document.getElementById('quizCategoriesDatalist');
+            if (catListEl) {
+                catListEl.innerHTML = cats.map(c => `<option value="${c}">`).join('');
+            }
+            updateQuizSubCategoryDatalist();
+        }
+
+        function updateQuizSubCategoryDatalist() {
+            const subListEl = document.getElementById('quizSubCategoriesDatalist');
+            if (!subListEl) return;
+            const curParent = document.getElementById('quizCategoryNameInput').value.trim();
+            const subs = [...new Set(
+                window.quizBank
+                    .filter(q => (!curParent || q.category === curParent) && q.subcategory)
+                    .map(q => q.subcategory)
+            )].sort(naturalSortCompare);
+            subListEl.innerHTML = subs.map(s => `<option value="${s}">`).join('');
+        }
+
+        function getFilteredQuizPool() {
+            return window.quizBank.filter(q => {
+                const matchParent = quizSelectedCategory === 'ALL' || q.category === quizSelectedCategory;
+                const matchSub = quizSelectedSubCategory === 'ALL' || q.subcategory === quizSelectedSubCategory;
+                return matchParent && matchSub;
+            });
+        }
+
+        function refreshQuizModeUI() {
+            updateQuizDatalists();
+            const badgeEl = document.getElementById('quizBankTotalBadge');
+            if (badgeEl) badgeEl.innerText = `測驗庫 ${window.quizBank.length} 題`;
+
+            renderQuizCategories();
+            renderQuizHistorySidebar();
+            renderQuizWorkspace();
+        }
+
+        function renderQuizCategories() {
+            const catContainer = document.getElementById('quizCategoryList');
+            const subSection = document.getElementById('quizSubCategorySection');
+            const subContainer = document.getElementById('quizSubCategoryList');
+            if (!catContainer) return;
+
+            const categories = [...new Set(window.quizBank.map(q => q.category).filter(Boolean))].sort(naturalSortCompare);
+
+            let html = `
+                <button onclick="selectQuizCategory('ALL')" class="px-3 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm ${
+                    quizSelectedCategory === 'ALL'
+                    ? 'bg-indigo-600 text-white font-bold'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }">
+                    全部 (${window.quizBank.length})
+                </button>
+            `;
+
+            categories.forEach(cat => {
+                const isActive = cat === quizSelectedCategory;
+                const count = window.quizBank.filter(q => q.category === cat).length;
+                const safeCat = encodeURIComponent(cat);
+                html += `
+                    <div class="inline-flex items-center rounded-xl text-xs transition-all ${
+                        isActive ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
+                    }">
+                        <button onclick="selectQuizCategory(decodeURIComponent('${safeCat}'))" class="px-2.5 py-1 font-semibold">
+                            ${cat} (${count})
+                        </button>
+                        <button onclick="deleteQuizCategory(decodeURIComponent('${safeCat}'))" title="刪除此測驗母類別" class="pr-2 pl-0.5 py-1 text-slate-400 hover:text-rose-400 font-bold">×</button>
+                    </div>
+                `;
+            });
+            catContainer.innerHTML = html;
+
+            if (quizSelectedCategory === 'ALL') {
+                subSection.classList.add('hidden');
+            } else {
+                const subs = [...new Set(
+                    window.quizBank
+                        .filter(q => q.category === quizSelectedCategory && q.subcategory)
+                        .map(q => q.subcategory)
+                )].sort(naturalSortCompare);
+
+                if (subs.length > 0) {
+                    subSection.classList.remove('hidden');
+                    const safeParent = encodeURIComponent(quizSelectedCategory);
+                    let subHtml = `
+                        <button onclick="selectQuizSubCategory('ALL')" class="px-2.5 py-0.5 rounded-lg text-xs font-semibold transition ${
+                            quizSelectedSubCategory === 'ALL'
+                            ? 'bg-indigo-800 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }">
+                            全部單元
+                        </button>
+                    `;
+                    subs.forEach(sub => {
+                        const isSubActive = sub === quizSelectedSubCategory;
+                        const subCount = window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory === sub).length;
+                        const safeSub = encodeURIComponent(sub);
+                        subHtml += `
+                            <div class="inline-flex items-center rounded-lg text-xs transition ${
+                                isSubActive ? 'bg-indigo-800 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }">
+                                <button onclick="selectQuizSubCategory(decodeURIComponent('${safeSub}'))" class="px-2 py-0.5 font-semibold">
+                                    ${sub} (${subCount})
+                                </button>
+                                <button onclick="deleteQuizSubCategory(decodeURIComponent('${safeParent}'), decodeURIComponent('${safeSub}'))" title="刪除此測驗單元" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 hover:text-rose-300 font-bold">×</button>
+                            </div>
+                        `;
+                    });
+                    subContainer.innerHTML = subHtml;
+                } else {
+                    subSection.classList.add('hidden');
+                }
+            }
+        }
+
+        function renderQuizWorkspace() {
+            const container = document.getElementById('quizWorkspaceContainer');
+            if (!container) return;
+
+            if (activeQuizSession && activeQuizSession.status === 'in_progress') {
+                renderActiveQuizTaking(container);
+                return;
+            }
+
+            if (activeQuizSession && activeQuizSession.status === 'submitted') {
+                renderQuizResultReview(container);
+                return;
+            }
+
+            const pool = getFilteredQuizPool();
+            const singleCount = pool.filter(q => q.qType === 'SINGLE').length;
+            const multiCount = pool.filter(q => q.qType === 'MULTI').length;
+            const fillCount = pool.filter(q => q.qType === 'FILL').length;
+
+            const scopeLabel = quizSelectedCategory === 'ALL'
+                ? '全部測驗題庫'
+                : (quizSelectedSubCategory === 'ALL' ? `${quizSelectedCategory}（全部單元）` : `${quizSelectedCategory} / ${quizSelectedSubCategory}`);
+
+            container.innerHTML = `
+                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-5">
+                    <div class="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <i class="fa-solid fa-graduation-cap text-indigo-500"></i> 開始模擬測驗
+                            </h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">目前選擇範圍：<span class="font-bold text-indigo-600 dark:text-indigo-400">${scopeLabel}</span></p>
+                        </div>
+                        <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/50">
+                            範圍內共 ${pool.length} 題
+                        </span>
+                    </div>
+
+                    <!-- 題型分佈統計 -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-sky-700 dark:text-sky-300">單選題</p>
+                            <p class="text-lg font-extrabold text-sky-900 dark:text-sky-100 mt-0.5">${singleCount} <span class="text-xs font-normal">題</span></p>
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-purple-700 dark:text-purple-300">複選題</p>
+                            <p class="text-lg font-extrabold text-purple-900 dark:text-purple-100 mt-0.5">${multiCount} <span class="text-xs font-normal">題</span></p>
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-amber-700 dark:text-amber-300">填空題</p>
+                            <p class="text-lg font-extrabold text-amber-900 dark:text-amber-100 mt-0.5">${fillCount} <span class="text-xs font-normal">題</span></p>
+                        </div>
+                    </div>
+
+                    <!-- 測驗參數設定 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label for="quizCountInput" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">出題題數設定</label>
+                            <div class="flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 focus-within:ring-2 focus-within:ring-indigo-400/50 focus-within:border-indigo-500 transition">
+                                <button type="button" onclick="adjustQuizCount(-5)" title="減少 5 題" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/70 dark:border-slate-600 flex items-center justify-center text-xs font-bold shadow-xs active:scale-95 transition shrink-0">
+                                    <i class="fa-solid fa-minus text-[10px]"></i>
+                                </button>
+                                <input type="number" id="quizCountInput" min="1" max="${Math.max(1, pool.length)}" value="${pool.length > 0 ? Math.min(20, pool.length) : 20}" placeholder="20" class="w-full text-center text-sm bg-transparent text-slate-800 dark:text-slate-100 font-extrabold outline-none px-1">
+                                <button type="button" onclick="adjustQuizCount(5)" title="增加 5 題" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/70 dark:border-slate-600 flex items-center justify-center text-xs font-bold shadow-xs active:scale-95 transition shrink-0">
+                                    <i class="fa-solid fa-plus text-[10px]"></i>
+                                </button>
+                                <button type="button" onclick="setQuizCountMax(${pool.length})" title="設為範圍內全部題數" class="ml-1 px-2 h-7 rounded-lg bg-indigo-100/80 dark:bg-indigo-950/80 hover:bg-indigo-200 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold transition shrink-0">
+                                    全部
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">題型範圍過濾</label>
+                            <select id="quizTypeFilterSelect" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                                <option value="ALL">混合全部題型</option>
+                                <option value="SINGLE">僅測驗單選題</option>
+                                <option value="MULTI">僅測驗複選題</option>
+                                <option value="SINGLE_MULTI">僅測驗單/複選題</option>
+                                <option value="FILL">僅測驗填空題</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">選項與題目順序</label>
+                            <select id="quizOrderSelect" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                                <option value="SHUFFLE" selected>隨機打亂題目與選項</option>
+                                <option value="SEQUENTIAL">依題庫原順序出題</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <button onclick="startNewQuizSession()" ${pool.length === 0 ? 'disabled' : ''} class="w-full py-3 px-4 rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 ${
+                            pool.length === 0
+                            ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white cursor-pointer'
+                        }">
+                            <i class="fa-solid fa-play"></i>
+                            <span>${pool.length === 0 ? '請先於左側匯入測驗題目' : '開始測驗'}</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function adjustQuizCount(delta) {
+            const input = document.getElementById('quizCountInput');
+            if (!input) return;
+            const maxVal = parseInt(input.max, 10) || 999;
+            const curVal = parseInt(input.value, 10) || 0;
+            const nextVal = Math.min(maxVal, Math.max(1, curVal + delta));
+            input.value = nextVal;
+        }
+
+        function setQuizCountMax(totalPoolCount) {
+            const input = document.getElementById('quizCountInput');
+            if (!input) return;
+            input.value = Math.max(1, totalPoolCount);
+        }
+
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function startNewQuizSession() {
+            const countInput = document.getElementById('quizCountInput');
+            const limit = parseInt(countInput ? countInput.value : '', 10);
+            const typeVal = document.getElementById('quizTypeFilterSelect').value;
+            const orderVal = document.getElementById('quizOrderSelect').value;
+
+            if (!limit || limit < 1) {
+                showToast('請輸入大於 0 的有效測驗題數！', 'error');
+                if (countInput) countInput.focus();
+                return;
+            }
+
+            let candidates = getFilteredQuizPool();
+            if (typeVal === 'SINGLE_MULTI') {
+                candidates = candidates.filter(q => q.qType === 'SINGLE' || q.qType === 'MULTI');
+            } else if (typeVal !== 'ALL') {
+                candidates = candidates.filter(q => q.qType === typeVal);
+            }
+
+            if (candidates.length === 0) {
+                showToast('所選條件下沒有可測驗的題目！', 'error');
+                return;
+            }
+
+            let selectedQuestions = orderVal === 'SHUFFLE' ? shuffleArray(candidates) : [...candidates];
+            selectedQuestions = selectedQuestions.slice(0, limit);
+
+            const sessionItems = selectedQuestions.map(q => {
+                const displayOptions = (q.qType !== 'FILL' && orderVal === 'SHUFFLE')
+                    ? shuffleArray(q.options || [])
+                    : [...(q.options || [])];
+
+                const blankMatches = (q.question || '').match(/\[\s*(?:__)?\d+(?:__)?\s*\]/g);
+                const blankCount = q.qType === 'FILL'
+                    ? Math.max((blankMatches ? blankMatches.length : 0), (q.answers ? q.answers.length : 1))
+                    : 0;
+
+                return {
+                    ...q,
+                    displayOptions,
+                    userAnswer: q.qType === 'FILL' ? new Array(blankCount).fill('') : []
+                };
+            });
+
+            const scopeTitle = quizSelectedCategory === 'ALL'
+                ? '全部題庫綜合測驗'
+                : (quizSelectedSubCategory === 'ALL' ? quizSelectedCategory : `${quizSelectedCategory} - ${quizSelectedSubCategory}`);
+
+            activeQuizSession = {
+                id: 'rec_' + Date.now(),
+                status: 'in_progress',
+                scopeTitle,
+                startTime: Date.now(),
+                items: sessionItems
+            };
+
+            renderQuizWorkspace();
+            const ws = document.getElementById('quizWorkspaceContainer');
+            if (ws) ws.scrollTop = 0;
+        }
+
+        function toggleQuizOptionChoice(qIdx, optIndex) {
+            if (!activeQuizSession || activeQuizSession.status !== 'in_progress') return;
+            const item = activeQuizSession.items[qIdx];
+            if (!item) return;
+
+            const chosenText = item.displayOptions[optIndex];
+            if (item.qType === 'SINGLE') {
+                item.userAnswer = [chosenText];
+            } else if (item.qType === 'MULTI') {
+                const idx = item.userAnswer.indexOf(chosenText);
+                if (idx > -1) {
+                    item.userAnswer.splice(idx, 1);
+                } else {
+                    item.userAnswer.push(chosenText);
+                }
+            }
+            renderQuizWorkspace();
+        }
+
+        function updateQuizFillInput(qIdx, blankIdx, value) {
+            if (!activeQuizSession || activeQuizSession.status !== 'in_progress') return;
+            const item = activeQuizSession.items[qIdx];
+            if (!item) return;
+            item.userAnswer[blankIdx] = value;
+
+            const answeredCount = activeQuizSession.items.filter(it => {
+                if (it.qType === 'FILL') {
+                    return it.userAnswer.some(v => (v || '').trim() !== '');
+                }
+                return it.userAnswer.length > 0;
+            }).length;
+            const progEl = document.getElementById('quizLiveProgressText');
+            if (progEl) {
+                progEl.innerText = `已作答 ${answeredCount} / ${activeQuizSession.items.length} 題`;
+            }
+        }
+
+        function renderActiveQuizTaking(container) {
+            const items = activeQuizSession.items;
+            const answeredCount = items.filter(it => {
+                if (it.qType === 'FILL') return it.userAnswer.some(v => (v || '').trim() !== '');
+                return it.userAnswer.length > 0;
+            }).length;
+
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+            let html = `
+                <!-- 測驗頂部狀態列 -->
+                <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-sm flex flex-wrap justify-between items-center gap-3 sticky top-0 z-20">
+                    <div>
+                        <span class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">測驗進行中</span>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">${activeQuizSession.scopeTitle}</h3>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <span id="quizLiveProgressText" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                            已作答 ${answeredCount} / ${items.length} 題
+                        </span>
+                        <button onclick="abortQuizSession()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 transition">
+                            放棄測驗
+                        </button>
+                        <button onclick="submitQuizSession()" class="px-4 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-paper-plane"></i> 交卷批改
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            items.forEach((item, idx) => {
+                const typeBadge = item.qType === 'SINGLE'
+                    ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300">單選題</span>'
+                    : item.qType === 'MULTI'
+                    ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">複選題 (可多選)</span>'
+                    : '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">填空題</span>';
+
+                let answerAreaHtml = '';
+                if (item.qType === 'FILL') {
+                    answerAreaHtml = `<div class="space-y-2 pt-1">` + item.userAnswer.map((val, bIdx) => `
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1.5 rounded-lg border border-amber-200/70 dark:border-amber-800/50 shrink-0">
+                                空格 ${bIdx + 1}
+                            </span>
+                            <input type="text" value="${(val || '').replace(/"/g, '&quot;')}" oninput="updateQuizFillInput(${idx}, ${bIdx}, this.value)" class="w-full px-3.5 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 outline-none transition" placeholder="請輸入第 ${bIdx + 1} 格答案...">
+                        </div>
+                    `).join('') + `</div>`;
+                } else {
+                    answerAreaHtml = `<div class="space-y-2 pt-1">` + item.displayOptions.map((optText, oIdx) => {
+                        const isSelected = item.userAnswer.includes(optText);
+                        const prefix = letters[oIdx] || (oIdx + 1);
+                        return `
+                            <button type="button" onclick="toggleQuizOptionChoice(${idx}, ${oIdx})" class="w-full text-left px-4 py-2.5 rounded-xl border text-xs font-medium transition flex items-center gap-3 ${
+                                isSelected
+                                ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 text-indigo-950 dark:text-indigo-100 font-bold shadow-sm'
+                                : 'bg-slate-50/70 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                            }">
+                                <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                                    isSelected
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
+                                }">${prefix}</span>
+                                <span class="leading-relaxed">${escapeHtml(optText)}</span>
+                            </button>
+                        `;
+                    }).join('') + `</div>`;
+                }
+
+                html += `
+                    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 text-xs px-2.5 py-0.5 rounded-md font-extrabold">第 ${idx + 1} 題</span>
+                                ${typeBadge}
+                            </div>
+                            <span class="text-[11px] text-slate-400 dark:text-slate-500">${item.category}${item.subcategory ? ' / ' + item.subcategory : ''}</span>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">${escapeHtml(item.question)}</div>
+                        ${answerAreaHtml}
+                    </div>
+                `;
+            });
+
+            html += `
+                <div class="pt-2">
+                    <button onclick="submitQuizSession()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-check-double"></i> 完成作答並送出批改
+                    </button>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function abortQuizSession() {
+            showConfirm(
+                '放棄目前測驗',
+                '確定要放棄這場尚未交卷的測驗嗎？作答進度將不會儲存。',
+                () => {
+                    activeQuizSession = null;
+                    renderQuizWorkspace();
+                }
+            );
+        }
+
+        function submitQuizSession() {
+            if (!activeQuizSession || activeQuizSession.status !== 'in_progress') return;
+
+            let correctCount = 0;
+            const evaluatedItems = activeQuizSession.items.map(item => {
+                let isCorrect = false;
+                if (item.qType === 'FILL') {
+                    const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+                    const expected = item.answers || [];
+                    const given = item.userAnswer || [];
+                    isCorrect = expected.length > 0 && expected.every((expAns, i) => norm(given[i]) === norm(expAns));
+                } else {
+                    const normSet = arr => [...new Set((arr || []).map(s => String(s || '').trim()))].sort();
+                    const expSorted = normSet(item.answers);
+                    const usrSorted = normSet(item.userAnswer);
+                    isCorrect = expSorted.length === usrSorted.length && expSorted.every((val, i) => val === usrSorted[i]);
+                }
+
+                if (isCorrect) correctCount++;
+                return {
+                    ...item,
+                    isCorrect
+                };
+            });
+
+            const total = evaluatedItems.length;
+            const scorePercent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+            const durationSec = Math.max(1, Math.round((Date.now() - activeQuizSession.startTime) / 1000));
+
+            const record = {
+                id: activeQuizSession.id,
+                status: 'submitted',
+                scopeTitle: activeQuizSession.scopeTitle,
+                timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+                total,
+                correctCount,
+                wrongCount: total - correctCount,
+                scorePercent,
+                durationSec,
+                items: evaluatedItems
+            };
+
+            activeQuizSession = record;
+            window.quizHistory.unshift(record);
+            if (window.quizHistory.length > 50) {
+                window.quizHistory = window.quizHistory.slice(0, 50);
+            }
+            localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+
+            renderQuizHistorySidebar();
+            renderQuizWorkspace();
+            const ws = document.getElementById('quizWorkspaceContainer');
+            if (ws) ws.scrollTop = 0;
+            showToast(`批改完成！得分：${scorePercent} 分（答對 ${correctCount}/${total} 題）`, 'success');
+        }
+
+        function renderQuizResultReview(container) {
+            const rec = activeQuizSession;
+            const mins = Math.floor(rec.durationSec / 60);
+            const secs = rec.durationSec % 60;
+            const timeStr = mins > 0 ? `${mins} 分 ${secs} 秒` : `${secs} 秒`;
+
+            let html = `
+                <!-- 成績總結卡片 -->
+                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                            <span class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">測驗結果報告 · ${rec.timestamp}</span>
+                            <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 mt-0.5">${rec.scopeTitle}</h2>
+                        </div>
+                        <button onclick="exitQuizReview()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-rotate-left"></i> 返回測驗設定
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">總得分</p>
+                            <p class="text-2xl font-black text-indigo-900 dark:text-indigo-100 mt-0.5">${rec.scorePercent} <span class="text-xs font-semibold">分</span></p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">答對題數</p>
+                            <p class="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-0.5">${rec.correctCount} 題</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 text-center">
+                            <p class="text-[11px] font-semibold text-rose-700 dark:text-rose-300">答錯題數</p>
+                            <p class="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">${rec.wrongCount} 題</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 text-center">
+                            <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">作答耗時</p>
+                            <p class="text-base font-extrabold text-slate-700 dark:text-slate-200 mt-1">${timeStr}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            rec.items.forEach((item, idx) => {
+                const validUserAnswers = (item.userAnswer || []).filter(v => String(v || '').trim() !== '');
+                const correctAnswersList = item.answers || [];
+                const separator = item.qType === 'MULTI' ? '\n' : ' 、 ';
+
+                const userAnsDisplay = validUserAnswers.length > 0 ? validUserAnswers.join(separator) : '（未作答）';
+                const correctAnsDisplay = correctAnswersList.join(separator);
+
+                html += `
+                    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border ${
+                        item.isCorrect
+                        ? 'border-emerald-200/90 dark:border-emerald-800/60'
+                        : 'border-rose-300/90 dark:border-rose-800/70'
+                    } shadow-sm space-y-3">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs px-2.5 py-0.5 rounded-md font-extrabold ${
+                                    item.isCorrect
+                                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                    : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                                }">第 ${idx + 1} 題 · ${item.isCorrect ? '✓ 正確' : '✕ 錯誤'}</span>
+                            </div>
+                            <span class="text-[11px] text-slate-400">${item.category}${item.subcategory ? ' / ' + item.subcategory : ''}</span>
+                        </div>
+                        <div class="text-sm font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">${escapeHtml(item.question)}</div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-xs">
+                            <div class="p-3 rounded-xl border ${
+                                item.isCorrect
+                                ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-800/50 text-emerald-900 dark:text-emerald-200'
+                                : 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200/70 dark:border-rose-800/50 text-rose-900 dark:text-rose-200'
+                            }">
+                                <p class="text-[10px] font-bold opacity-75 mb-0.5">你的作答：</p>
+                                <p class="font-mono font-semibold whitespace-pre-wrap leading-relaxed">${escapeHtml(userAnsDisplay)}</p>
+                            </div>
+                            <div class="p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200">
+                                <p class="text-[10px] font-bold opacity-75 mb-0.5">正確答案：</p>
+                                <p class="font-mono font-semibold whitespace-pre-wrap leading-relaxed">${escapeHtml(correctAnsDisplay)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function exitQuizReview() {
+            activeQuizSession = null;
+            renderQuizWorkspace();
+        }
+
+        function viewQuizHistoryDetail(recId) {
+            const found = window.quizHistory.find(r => r.id === recId);
+            if (!found) return;
+            activeQuizSession = found;
+            renderQuizWorkspace();
+            const ws = document.getElementById('quizWorkspaceContainer');
+            if (ws) ws.scrollTop = 0;
+        }
+
+        function renderQuizHistorySidebar() {
+            const listEl = document.getElementById('quizHistorySidebarList');
+            if (!listEl) return;
+
+            if (!window.quizHistory || window.quizHistory.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-slate-400 dark:text-slate-500 text-center py-4 italic">尚無測驗紀錄，完成測驗後將自動記錄於此</p>`;
+                return;
+            }
+
+            listEl.innerHTML = window.quizHistory.map(rec => {
+                const scoreColor = rec.scorePercent >= 80
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800'
+                    : rec.scorePercent >= 60
+                    ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800'
+                    : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800';
+
+                return `
+                    <div onclick="viewQuizHistoryDetail('${rec.id}')" class="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 border border-slate-200/70 dark:border-slate-700/80 cursor-pointer transition flex justify-between items-center gap-2">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">${escapeHtml(rec.scopeTitle)}</p>
+                            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">${rec.timestamp} · 對 ${rec.correctCount}/${rec.total} 題</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-black border shrink-0 ${scoreColor}">
+                            ${rec.scorePercent}分
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function clearQuizHistory() {
+            if (!window.quizHistory || window.quizHistory.length === 0) return;
+            showConfirm(
+                '清除測驗歷史紀錄',
+                '確定要清除所有歷次測驗成績紀錄嗎？此操作無法復原。',
+                () => {
+                    window.quizHistory = [];
+                    localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+                    if (activeQuizSession && activeQuizSession.status === 'submitted') {
+                        activeQuizSession = null;
+                    }
+                    renderQuizHistorySidebar();
+                    renderQuizWorkspace();
+                    showToast('已清除所有測驗歷史紀錄', 'info');
+                }
+            );
         }
 
         // ===== 各題庫系統練習時間編輯與網址轉導功能 =====
@@ -1077,18 +2213,15 @@ Win32 API
             const ansList = Array.isArray(item.answers) ? item.answers : [];
             const validAnswers = ansList.filter(a => a && a.trim() !== '' && a.trim() !== '(未提供正確答案)');
 
-            // 1. 填空題特徵：題目中包含 [1] 或 [__1__] (支援任意數字編號)
             const hasFillPlaceholder = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText);
             if (hasFillPlaceholder) {
                 return 'FILL';
             }
 
-            // 2. 複選題特徵：正確答案數量大於 1 個
             if (validAnswers.length > 1) {
                 return 'MULTI';
             }
 
-            // 3. 單選題：非填空題且單一答案
             return 'SINGLE';
         }
 
@@ -1166,66 +2299,6 @@ Win32 API
 
             localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
             renderCategories();
-        }
-
-        // 重新命名母類別
-        function renameCategory(oldName) {
-            const newName = prompt(`請輸入「${oldName}」母類別的新名稱：`, oldName);
-            if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
-            const trimmedNew = newName.trim();
-
-            window.questionBank.forEach(q => {
-                if (q.category === oldName) {
-                    q.category = trimmedNew;
-                }
-            });
-
-            const idx = window.categoryOrder.indexOf(oldName);
-            if (idx !== -1) {
-                window.categoryOrder[idx] = trimmedNew;
-            }
-
-            if (window.subCategoryOrder[oldName]) {
-                window.subCategoryOrder[trimmedNew] = window.subCategoryOrder[oldName];
-                delete window.subCategoryOrder[oldName];
-            }
-
-            if (selectedCategory === oldName) {
-                selectedCategory = trimmedNew;
-            }
-
-            localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
-            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
-            saveAndRefresh();
-            showToast(`母類別已更名為「${trimmedNew}」`, 'success');
-        }
-
-        // 重新命名子類別
-        function renameSubCategory(parentCat, oldSubName) {
-            const newSubName = prompt(`請輸入「${parentCat} ➔ ${oldSubName}」子類別的新名稱：`, oldSubName);
-            if (!newSubName || newSubName.trim() === '' || newSubName.trim() === oldSubName) return;
-            const trimmedNewSub = newSubName.trim();
-
-            window.questionBank.forEach(q => {
-                if (q.category === parentCat && q.subcategory === oldSubName) {
-                    q.subcategory = trimmedNewSub;
-                }
-            });
-
-            if (window.subCategoryOrder[parentCat]) {
-                const sIdx = window.subCategoryOrder[parentCat].indexOf(oldSubName);
-                if (sIdx !== -1) {
-                    window.subCategoryOrder[parentCat][sIdx] = trimmedNewSub;
-                }
-            }
-
-            if (selectedSubCategory === oldSubName) {
-                selectedSubCategory = trimmedNewSub;
-            }
-
-            localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
-            saveAndRefresh();
-            showToast(`子類別已更名為「${trimmedNewSub}」`, 'success');
         }
 
         function renderCategories() {
@@ -1485,7 +2558,6 @@ Win32 API
                 const matchParent = selectedCategory === 'ALL' || q.category === selectedCategory;
                 const matchSub = selectedSubCategory === 'ALL' || q.subcategory === selectedSubCategory;
                 
-                // 中英文語言篩選比對
                 let matchLang = true;
                 if (selectedLanguage === 'ZH') {
                     matchLang = isChineseQuestion(q.question);
@@ -1493,7 +2565,6 @@ Win32 API
                     matchLang = !isChineseQuestion(q.question);
                 }
 
-                // 單選 / 複選 / 單複選 / 填空題型篩選比對
                 let matchQType = true;
                 if (selectedQuestionType === 'SINGLE_MULTI') {
                     const detected = detectQuestionCategoryType(q);
@@ -1929,14 +3000,16 @@ Win32 API
             );
         }
 
-        // JSON 匯出（包涵題庫、練習時間與自訂排序）
+        // JSON 匯出（包涵題庫、練習時間、自訂排序與獨立測驗模式題庫與歷史紀錄）
         function exportJSON() {
             const notes = localStorage.getItem('practice_schedule_notes') || '';
             const exportData = {
                 questionBank: window.questionBank,
                 practiceNotes: notes,
                 categoryOrder: window.categoryOrder,
-                subCategoryOrder: window.subCategoryOrder
+                subCategoryOrder: window.subCategoryOrder,
+                quizBank: window.quizBank || [],
+                quizHistory: window.quizHistory || []
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
             const anchor = document.createElement('a');
@@ -1945,10 +3018,10 @@ Win32 API
             document.body.appendChild(anchor);
             anchor.click();
             anchor.remove();
-            showToast('已匯出完整 JSON 備份檔（含練習時間與自訂排序）！', 'success');
+            showToast('已匯出完整 JSON 備份檔（含練習時間、自訂排序與測驗模式題庫）！', 'success');
         }
 
-        // JSON 匯入（支援新版物件結構與舊版純陣列結構）
+        // JSON 匯入（支援新版物件結構與舊版純陣列結構，並還原測驗模式資料）
         function importJSONFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -1977,8 +3050,17 @@ Win32 API
                             window.subCategoryOrder = imported.subCategoryOrder;
                             localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
                         }
+                        if (Array.isArray(imported.quizBank)) {
+                            window.quizBank = imported.quizBank;
+                            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                        }
+                        if (Array.isArray(imported.quizHistory)) {
+                            window.quizHistory = imported.quizHistory;
+                            localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+                        }
                         saveAndRefresh();
-                        showToast('JSON 題庫、練習時間與類別順序成功載入！', 'success');
+                        refreshQuizModeUI();
+                        showToast('JSON 題庫、練習時間、類別順序與測驗模式資料成功載入！', 'success');
                     }
                 } catch (err) {
                     showToast('讀取失敗：' + err.message, 'error');
@@ -1987,7 +3069,95 @@ Win32 API
             reader.readAsText(file);
         }
 
-        // ===== Firebase 雲端整合處理（同步題庫、練習時間與類別順序） =====
+        // ===== Firebase 雲端整合處理（同步題庫、練習時間、類別順序與獨立路徑之測驗模式） =====
+        function parseFirebaseConfigText(rawConfig) {
+            const trimmed = (rawConfig || '').trim();
+            if (!trimmed) return null;
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                const startIdx = trimmed.indexOf('{');
+                const endIdx = trimmed.lastIndexOf('}');
+                if (startIdx !== -1 && endIdx > startIdx) {
+                    const objStr = trimmed.slice(startIdx, endIdx + 1);
+                    const normalized = objStr
+                        .replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":')
+                        .replace(/'([^']*)'/g, '"$1"')
+                        .replace(/,\s*}/g, '}');
+                    return JSON.parse(normalized);
+                }
+                throw e;
+            }
+        }
+
+        async function waitForFirebaseSDK(maxWaitMs = 5000) {
+            const start = Date.now();
+            while (typeof window.initFirebase !== 'function' || typeof window.set !== 'function' || typeof window.get !== 'function' || typeof window.ref !== 'function') {
+                if (Date.now() - start > maxWaitMs) return false;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return true;
+        }
+
+        async function ensureFirebaseConnected() {
+            const sdkReady = await waitForFirebaseSDK();
+            if (!sdkReady) return false;
+            if (window.db && window.firebaseActiveConfig) return true;
+
+            const inputEl = document.getElementById('firebaseConfigInput');
+            const savedConfig = localStorage.getItem('firebase_config_cache') || (inputEl && inputEl.value.trim());
+            if (savedConfig) {
+                try {
+                    const configObj = parseFirebaseConfigText(savedConfig);
+                    if (configObj && window.initFirebase(configObj)) {
+                        localStorage.setItem('firebase_config_cache', JSON.stringify(configObj));
+                        const statusEl = document.getElementById('firebaseStatus');
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
+                            statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
+                        }
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('Firebase auto-reconnect error:', e);
+                }
+            }
+            return false;
+        }
+
+        function setCloudButtonsLoading(isLoading) {
+            const btnConfigs = [
+                { id: 'quizPushCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>推送中...</span>' },
+                { id: 'settingsPushCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>推送中...</span>' },
+                { id: 'quizPullCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>拉取中...</span>' },
+                { id: 'settingsPullCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>拉取中...</span>' }
+            ];
+            btnConfigs.forEach(cfg => {
+                const el = document.getElementById(cfg.id);
+                if (el) {
+                    el.disabled = isLoading;
+                    el.innerHTML = isLoading ? cfg.loadingHtml : cfg.idleHtml;
+                }
+            });
+        }
+
+        function sanitizeForFirebase(obj) {
+            if (obj === undefined) return null;
+            if (obj === null || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) {
+                return obj.map(item => sanitizeForFirebase(item));
+            }
+            const cleanObj = {};
+            Object.keys(obj).forEach(key => {
+                const safeKey = String(key).replace(/[.#$\[\]\/]/g, '_');
+                const val = obj[key];
+                if (val !== undefined) {
+                    cleanObj[safeKey] = sanitizeForFirebase(val);
+                }
+            });
+            return cleanObj;
+        }
+
         function setupFirebase(silent = false) {
             const rawConfig = document.getElementById('firebaseConfigInput').value.trim();
             if (!rawConfig) {
@@ -1996,10 +3166,18 @@ Win32 API
             }
 
             try {
-                const config = JSON.parse(rawConfig);
+                const config = parseFirebaseConfigText(rawConfig);
+                if (!config.databaseURL && !config.projectId) {
+                    if (!silent) showToast('Config 缺少 databaseURL 或 projectId，無法連接 Realtime Database', 'error');
+                    return;
+                }
+                if (typeof window.initFirebase !== 'function') {
+                    if (!silent) showToast('Firebase 模組載入中，請稍候 1 秒後再試', 'info');
+                    return;
+                }
                 const success = window.initFirebase(config);
                 if (success) {
-                    localStorage.setItem('firebase_config_cache', rawConfig);
+                    localStorage.setItem('firebase_config_cache', JSON.stringify(config));
                     const statusEl = document.getElementById('firebaseStatus');
                     statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
                     statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
@@ -2013,62 +3191,185 @@ Win32 API
             }
         }
 
+        function getFirebaseRestEndpoint() {
+            const cfg = window.firebaseActiveConfig || {};
+            const baseUrl = (cfg.databaseURL || '').replace(/\/+$/, '');
+            if (!baseUrl) return null;
+            return `${baseUrl}/.json`;
+        }
+
         async function uploadToFirebase() {
-            if (!window.db) {
-                showToast('請先進行 Firebase 初始化連線', 'error');
-                return;
-            }
+            setCloudButtonsLoading(true);
             try {
+                const connected = await ensureFirebaseConnected();
+                if (!connected) {
+                    openSettingsModal();
+                    showToast('請先在設定中填寫並連接 Firebase 專案設定！', 'error');
+                    return;
+                }
+
+                const restUrl = getFirebaseRestEndpoint();
+                if (!restUrl) {
+                    openSettingsModal();
+                    showToast('Firebase 設定缺少 databaseURL，請確認貼上的設定包含 databaseURL 欄位！', 'error');
+                    return;
+                }
+
+                showToast('正在推送資料至 Firebase 雲端...', 'info');
                 const notes = localStorage.getItem('practice_schedule_notes') || '';
-                const payload = {
+                const cleanPayload = sanitizeForFirebase({
                     questions: window.questionBank || [],
                     practiceNotes: notes,
                     categoryOrder: window.categoryOrder || [],
-                    subCategoryOrder: window.subCategoryOrder || {}
-                };
-                await window.set(window.ref(window.db, "/"), payload);
+                    subCategoryOrder: window.subCategoryOrder || {},
+                    quizMode: {
+                        quizBank: window.quizBank || [],
+                        quizHistory: window.quizHistory || [],
+                        updatedAt: Date.now()
+                    }
+                });
+
+                // 優先使用 SDK 寫入（5 秒快速偵測），若因沙盒環境 WebSocket 受阻則自動切換 REST API 寫入
+                let sdkSucceeded = false;
+                try {
+                    await Promise.race([
+                        window.set(window.ref(window.db, "/"), cleanPayload),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_TIMEOUT')), 5000))
+                    ]);
+                    sdkSucceeded = true;
+                } catch (sdkErr) {
+                    if (sdkErr && sdkErr.message !== 'SDK_TIMEOUT') {
+                        throw sdkErr;
+                    }
+                }
+
+                if (!sdkSucceeded) {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 12000);
+                    try {
+                        const res = await fetch(restUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(cleanPayload),
+                            signal: controller.signal
+                        });
+                        if (!res.ok) {
+                            if (res.status === 401 || res.status === 403) {
+                                throw new Error('Firebase 資料庫拒絕存取 (401/403)，請檢查 Realtime Database 規則是否允許寫入');
+                            } else if (res.status === 404) {
+                                throw new Error('找不到資料庫網址 (404)，請確認 databaseURL 是否正確');
+                            }
+                            throw new Error(`HTTP 錯誤 (${res.status})`);
+                        }
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                }
                 
-                showToast('已同步備份至firebase雲端!', 'success');
+                showToast(`已成功推送至 Firebase 雲端！（測驗題庫 ${window.quizBank.length} 題、紀錄 ${window.quizHistory.length} 筆）`, 'success');
             } catch (err) {
-                showToast('推送至雲端失敗：' + err.message, 'error');
+                console.error('Firebase upload error:', err);
+                const msg = err && err.name === 'AbortError'
+                    ? '網路連線逾時，請檢查網路或 databaseURL 是否正確'
+                    : (err && err.message ? err.message : String(err));
+                showToast('推送至雲端失敗：' + msg, 'error');
+            } finally {
+                setCloudButtonsLoading(false);
             }
         }
 
         async function downloadFromFirebase() {
-            if (!window.db) {
-                showToast('請先進行 Firebase 初始化連線', 'error');
-                return;
-            }
+            setCloudButtonsLoading(true);
             try {
-                const snapshot = await window.get(window.ref(window.db, "/"));
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
+                const connected = await ensureFirebaseConnected();
+                if (!connected) {
+                    openSettingsModal();
+                    showToast('請先在設定中填寫並連接 Firebase 專案設定！', 'error');
+                    return;
+                }
+
+                const restUrl = getFirebaseRestEndpoint();
+                if (!restUrl) {
+                    openSettingsModal();
+                    showToast('Firebase 設定缺少 databaseURL，請確認貼上的設定包含 databaseURL 欄位！', 'error');
+                    return;
+                }
+
+                showToast('正在從 Firebase 雲端拉取資料...', 'info');
+                let data = null;
+                let hasData = false;
+
+                try {
+                    const snapshot = await Promise.race([
+                        window.get(window.ref(window.db, "/")),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_TIMEOUT')), 5000))
+                    ]);
+                    hasData = snapshot.exists();
+                    data = hasData ? snapshot.val() : null;
+                } catch (sdkErr) {
+                    if (sdkErr && sdkErr.message !== 'SDK_TIMEOUT') {
+                        throw sdkErr;
+                    }
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 12000);
+                    try {
+                        const res = await fetch(restUrl, { method: 'GET', signal: controller.signal });
+                        if (!res.ok) {
+                            if (res.status === 401 || res.status === 403) {
+                                throw new Error('Firebase 資料庫拒絕存取 (401/403)，請檢查 Realtime Database 規則是否允許讀取');
+                            } else if (res.status === 404) {
+                                throw new Error('找不到資料庫網址 (404)，請確認 databaseURL 是否正確');
+                            }
+                            throw new Error(`HTTP 錯誤 (${res.status})`);
+                        }
+                        data = await res.json();
+                        hasData = data !== null && data !== undefined;
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                }
+
+                if (hasData && data) {
                     if (Array.isArray(data)) {
-                        window.questionBank = data;
+                        window.questionBank = data.filter(Boolean);
                     } else if (data && typeof data === 'object') {
                         if (Array.isArray(data.questions)) {
-                            window.questionBank = data.questions;
+                            window.questionBank = data.questions.filter(Boolean);
                         }
                         if (typeof data.practiceNotes === 'string') {
                             localStorage.setItem('practice_schedule_notes', data.practiceNotes);
                             loadPracticeNotes();
                         }
                         if (Array.isArray(data.categoryOrder)) {
-                            window.categoryOrder = data.categoryOrder;
+                            window.categoryOrder = data.categoryOrder.filter(Boolean);
                             localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
                         }
                         if (data.subCategoryOrder && typeof data.subCategoryOrder === 'object') {
                             window.subCategoryOrder = data.subCategoryOrder;
                             localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
                         }
+                        if (data.quizMode && typeof data.quizMode === 'object') {
+                            window.quizBank = Array.isArray(data.quizMode.quizBank) ? data.quizMode.quizBank.filter(Boolean) : [];
+                            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+
+                            window.quizHistory = Array.isArray(data.quizMode.quizHistory) ? data.quizMode.quizHistory.filter(Boolean) : [];
+                            localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+                        }
                     }
                     saveAndRefresh();
-                    showToast('已順利從firebase載入最新題庫!', 'success');
+                    refreshQuizModeUI();
+                    showToast(`已順利載入最新資料！（測驗題庫 ${window.quizBank.length} 題、紀錄 ${window.quizHistory.length} 筆）`, 'success');
                 } else {
                     showToast('Firebase 雲端目前尚無數據', 'info');
                 }
             } catch (err) {
-                showToast('拉取雲端資料失敗：' + err.message, 'error');
+                console.error('Firebase download error:', err);
+                const msg = err && err.name === 'AbortError'
+                    ? '網路連線逾時，請檢查網路或 databaseURL 是否正確'
+                    : (err && err.message ? err.message : String(err));
+                showToast('拉取雲端資料失敗：' + msg, 'error');
+            } finally {
+                setCloudButtonsLoading(false);
             }
         }
     </script>
