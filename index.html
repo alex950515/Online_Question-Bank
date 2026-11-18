@@ -3080,17 +3080,13 @@ Win32 API
                 const endIdx = trimmed.lastIndexOf('}');
                 if (startIdx !== -1 && endIdx > startIdx) {
                     const objStr = trimmed.slice(startIdx, endIdx + 1);
-                    const normalized = objStr
-                        .replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":')
-                        .replace(/'([^']*)'/g, '"$1"')
-                        .replace(/,\s*}/g, '}');
-                    return JSON.parse(normalized);
+                    return (new Function('return (' + objStr + ');'))();
                 }
                 throw e;
             }
         }
 
-        async function waitForFirebaseSDK(maxWaitMs = 5000) {
+        async function waitForFirebaseSDK(maxWaitMs = 2000) {
             const start = Date.now();
             while (typeof window.initFirebase !== 'function' || typeof window.set !== 'function' || typeof window.get !== 'function' || typeof window.ref !== 'function') {
                 if (Date.now() - start > maxWaitMs) return false;
@@ -3100,29 +3096,43 @@ Win32 API
         }
 
         async function ensureFirebaseConnected() {
-            const sdkReady = await waitForFirebaseSDK();
-            if (!sdkReady) return false;
-            if (window.db && window.firebaseActiveConfig) return true;
-
             const inputEl = document.getElementById('firebaseConfigInput');
             const savedConfig = localStorage.getItem('firebase_config_cache') || (inputEl && inputEl.value.trim());
-            if (savedConfig) {
+            if (!savedConfig) return false;
+
+            let configObj = null;
+            try {
+                configObj = parseFirebaseConfigText(savedConfig);
+            } catch (e) {
+                console.error('Parse config failed:', e);
+                return false;
+            }
+            if (!configObj || typeof configObj !== 'object') return false;
+
+            if (!configObj.databaseURL && configObj.projectId) {
+                configObj.databaseURL = `https://${configObj.projectId}-default-rtdb.firebaseio.com`;
+            }
+
+            if (!configObj.databaseURL) return false;
+
+            window.firebaseActiveConfig = configObj;
+            localStorage.setItem('firebase_config_cache', JSON.stringify(configObj));
+
+            const statusEl = document.getElementById('firebaseStatus');
+            if (statusEl) {
+                statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
+                statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
+            }
+
+            const sdkReady = await waitForFirebaseSDK(1500);
+            if (sdkReady && !window.db) {
                 try {
-                    const configObj = parseFirebaseConfigText(savedConfig);
-                    if (configObj && window.initFirebase(configObj)) {
-                        localStorage.setItem('firebase_config_cache', JSON.stringify(configObj));
-                        const statusEl = document.getElementById('firebaseStatus');
-                        if (statusEl) {
-                            statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
-                            statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
-                        }
-                        return true;
-                    }
+                    window.initFirebase(configObj);
                 } catch (e) {
-                    console.error('Auto connect failed:', e);
+                    console.warn('SDK init fallback to REST:', e);
                 }
             }
-            return false;
+            return true;
         }
 
         function setCloudButtonsLoading(actionType, isLoading) {
@@ -3160,13 +3170,25 @@ Win32 API
             }
             const cleanObj = {};
             Object.keys(obj).forEach(key => {
-                const safeKey = String(key).replace(/[.#$\[\]\/]/g, '_');
+                const safeKey = String(key).replace(/[.#$\[\]\/]/g, '_') || '_empty_';
                 const val = obj[key];
                 if (val !== undefined) {
                     cleanObj[safeKey] = sanitizeForFirebase(val);
                 }
             });
             return cleanObj;
+        }
+
+        function normalizeFirebaseArray(val) {
+            if (!val) return [];
+            if (Array.isArray(val)) return val.filter(item => item !== null && item !== undefined);
+            if (typeof val === 'object') {
+                return Object.keys(val)
+                    .sort((a, b) => Number(a) - Number(b))
+                    .map(k => val[k])
+                    .filter(item => item !== null && item !== undefined);
+            }
+            return [];
         }
 
         function setupFirebase(silent = false) {
@@ -3178,22 +3200,24 @@ Win32 API
 
             try {
                 const config = parseFirebaseConfigText(rawConfig);
-                if (!config.databaseURL && !config.projectId) {
+                if (!config.databaseURL && config.projectId) {
+                    config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
+                }
+                if (!config.databaseURL) {
                     if (!silent) showToast('Config 缺少 databaseURL 或 projectId，無法連接 Realtime Database', 'error');
                     return;
                 }
-                if (typeof window.initFirebase !== 'function') {
-                    if (!silent) showToast('Firebase 模組載入中，請稍候 1 秒後再試', 'info');
-                    return;
+                window.firebaseActiveConfig = config;
+                localStorage.setItem('firebase_config_cache', JSON.stringify(config));
+
+                if (typeof window.initFirebase === 'function') {
+                    window.initFirebase(config);
                 }
-                const success = window.initFirebase(config);
-                if (success) {
-                    localStorage.setItem('firebase_config_cache', JSON.stringify(config));
-                    const statusEl = document.getElementById('firebaseStatus');
-                    statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
-                    statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
-                    if (!silent) showToast('Firebase 連線成功！', 'success');
-                }
+
+                const statusEl = document.getElementById('firebaseStatus');
+                statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 已連線';
+                statusEl.className = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60';
+                if (!silent) showToast('Firebase 連線成功！', 'success');
             } catch (err) {
                 const statusEl = document.getElementById('firebaseStatus');
                 statusEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> 配置錯誤';
@@ -3244,41 +3268,32 @@ Win32 API
                     }
                 });
 
-                // 優先使用 SDK 寫入（5 秒快速偵測），若因沙盒環境 WebSocket 受阻則自動切換 REST API 寫入
-                let sdkSucceeded = false;
+                // 直接透過 REST API (PUT) 寫入 Realtime Database，避免沙盒 WebSocket 阻擋或 SDK 掛起
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
                 try {
-                    await Promise.race([
-                        window.set(window.ref(window.db, "/"), cleanPayload),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_TIMEOUT')), 5000))
-                    ]);
-                    sdkSucceeded = true;
-                } catch (sdkErr) {
-                    if (sdkErr && sdkErr.message !== 'SDK_TIMEOUT') {
-                        throw sdkErr;
-                    }
-                }
+                    const res = await fetch(restUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(cleanPayload),
+                        signal: controller.signal
+                    });
+                    if (!res.ok) {
+                        let errDetail = '';
+                        try {
+                            const errJson = await res.json();
+                            if (errJson && errJson.error) errDetail = ` (${errJson.error})`;
+                        } catch (_) {}
 
-                if (!sdkSucceeded) {
-                    const controller = new AbortController();
-                    const timer = setTimeout(() => controller.abort(), 12000);
-                    try {
-                        const res = await fetch(restUrl, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(cleanPayload),
-                            signal: controller.signal
-                        });
-                        if (!res.ok) {
-                            if (res.status === 401 || res.status === 403) {
-                                throw new Error('Firebase 資料庫拒絕存取 (401/403)，請檢查 Realtime Database 規則是否允許寫入');
-                            } else if (res.status === 404) {
-                                throw new Error('找不到資料庫網址 (404)，請確認 databaseURL 是否正確');
-                            }
-                            throw new Error(`HTTP 錯誤 (${res.status})`);
+                        if (res.status === 401 || res.status === 403) {
+                            throw new Error(`Firebase 資料庫拒絕存取 (401/403)${errDetail}，請檢查 Realtime Database 規則是否允許寫入`);
+                        } else if (res.status === 404) {
+                            throw new Error(`找不到資料庫網址 (404)${errDetail}，請確認 databaseURL 是否正確`);
                         }
-                    } finally {
-                        clearTimeout(timer);
+                        throw new Error(`HTTP 錯誤 (${res.status})${errDetail}`);
                     }
+                } finally {
+                    clearTimeout(timer);
                 }
                 
                 showToast(`已成功推送至 Firebase 雲端！（測驗題庫 ${window.quizBank.length} 題、紀錄 ${window.quizHistory.length} 筆）`, 'success');
@@ -3315,51 +3330,45 @@ Win32 API
 
                 showToast('正在從 Firebase 雲端拉取資料...', 'info');
                 let data = null;
-                let hasData = false;
 
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
                 try {
-                    const snapshot = await Promise.race([
-                        window.get(window.ref(window.db, "/")),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_TIMEOUT')), 5000))
-                    ]);
-                    hasData = snapshot.exists();
-                    data = hasData ? snapshot.val() : null;
-                } catch (sdkErr) {
-                    if (sdkErr && sdkErr.message !== 'SDK_TIMEOUT') {
-                        throw sdkErr;
-                    }
-                    const controller = new AbortController();
-                    const timer = setTimeout(() => controller.abort(), 12000);
-                    try {
-                        const res = await fetch(restUrl, { method: 'GET', signal: controller.signal });
-                        if (!res.ok) {
-                            if (res.status === 401 || res.status === 403) {
-                                throw new Error('Firebase 資料庫拒絕存取 (401/403)，請檢查 Realtime Database 規則是否允許讀取');
-                            } else if (res.status === 404) {
-                                throw new Error('找不到資料庫網址 (404)，請確認 databaseURL 是否正確');
-                            }
-                            throw new Error(`HTTP 錯誤 (${res.status})`);
+                    const res = await fetch(restUrl, { method: 'GET', signal: controller.signal });
+                    if (!res.ok) {
+                        let errDetail = '';
+                        try {
+                            const errJson = await res.json();
+                            if (errJson && errJson.error) errDetail = ` (${errJson.error})`;
+                        } catch (_) {}
+
+                        if (res.status === 401 || res.status === 403) {
+                            throw new Error(`Firebase 資料庫拒絕存取 (401/403)${errDetail}，請檢查 Realtime Database 規則是否允許讀取`);
+                        } else if (res.status === 404) {
+                            throw new Error(`找不到資料庫網址 (404)${errDetail}，請確認 databaseURL 是否正確`);
                         }
-                        data = await res.json();
-                        hasData = data !== null && data !== undefined;
-                    } finally {
-                        clearTimeout(timer);
+                        throw new Error(`HTTP 錯誤 (${res.status})${errDetail}`);
                     }
+                    data = await res.json();
+                } finally {
+                    clearTimeout(timer);
                 }
+
+                const hasData = data !== null && data !== undefined;
 
                 if (hasData && data) {
                     if (Array.isArray(data)) {
-                        window.questionBank = data.filter(Boolean);
+                        window.questionBank = normalizeFirebaseArray(data);
                     } else if (data && typeof data === 'object') {
-                        if (Array.isArray(data.questions)) {
-                            window.questionBank = data.questions.filter(Boolean);
+                        if (data.questions !== undefined) {
+                            window.questionBank = normalizeFirebaseArray(data.questions);
                         }
                         if (typeof data.practiceNotes === 'string') {
                             localStorage.setItem('practice_schedule_notes', data.practiceNotes);
                             loadPracticeNotes();
                         }
-                        if (Array.isArray(data.categoryOrder)) {
-                            window.categoryOrder = data.categoryOrder.filter(Boolean);
+                        if (data.categoryOrder !== undefined) {
+                            window.categoryOrder = normalizeFirebaseArray(data.categoryOrder);
                             localStorage.setItem('category_order_v1', JSON.stringify(window.categoryOrder));
                         }
                         if (data.subCategoryOrder && typeof data.subCategoryOrder === 'object') {
@@ -3367,10 +3376,10 @@ Win32 API
                             localStorage.setItem('sub_category_order_v1', JSON.stringify(window.subCategoryOrder));
                         }
                         if (data.quizMode && typeof data.quizMode === 'object') {
-                            window.quizBank = Array.isArray(data.quizMode.quizBank) ? data.quizMode.quizBank.filter(Boolean) : [];
+                            window.quizBank = normalizeFirebaseArray(data.quizMode.quizBank);
                             localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
 
-                            window.quizHistory = Array.isArray(data.quizMode.quizHistory) ? data.quizMode.quizHistory.filter(Boolean) : [];
+                            window.quizHistory = normalizeFirebaseArray(data.quizMode.quizHistory);
                             localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
                         }
                     }
