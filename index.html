@@ -309,10 +309,7 @@ Win32 API
                                 英文題
                             </button>
                         </div>
-
-                        <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
-
-                        <!-- 題型篩選切換 (單選 / 複選 / 填空) -->
+                        <!-- 題型篩選切換 (單選 / 複選 / 單複選 / 填空) -->
                         <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="題型篩選">
                             <button type="button" onclick="setQuestionTypeFilter('ALL')" id="qTypeBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
                                 全部題型
@@ -322,6 +319,9 @@ Win32 API
                             </button>
                             <button type="button" onclick="setQuestionTypeFilter('MULTI')" id="qTypeBtn_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
                                 複選
+                            </button>
+                            <button type="button" onclick="setQuestionTypeFilter('SINGLE_MULTI')" id="qTypeBtn_SINGLE_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                單/複選
                             </button>
                             <button type="button" onclick="setQuestionTypeFilter('FILL')" id="qTypeBtn_FILL" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
                                 填空
@@ -587,7 +587,7 @@ Win32 API
         let selectedCategory = 'ALL';
         let selectedSubCategory = 'ALL';
         let selectedLanguage = 'ALL'; // 'ALL' | 'ZH' | 'EN'
-        let selectedQuestionType = 'ALL'; // 'ALL' | 'SINGLE' | 'MULTI' | 'FILL'
+        let selectedQuestionType = 'ALL'; // 'ALL' | 'SINGLE_MULTI' | 'SINGLE' | 'MULTI' | 'FILL'
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
         let isEditingNotes = false;
@@ -1059,7 +1059,7 @@ Win32 API
         // 題型篩選切換函式
         function setQuestionTypeFilter(qType) {
             selectedQuestionType = qType;
-            ['ALL', 'SINGLE', 'MULTI', 'FILL'].forEach(code => {
+            ['ALL', 'SINGLE_MULTI', 'SINGLE', 'MULTI', 'FILL'].forEach(code => {
                 const btn = document.getElementById(`qTypeBtn_${code}`);
                 if (!btn) return;
                 if (code === qType) {
@@ -1493,9 +1493,12 @@ Win32 API
                     matchLang = !isChineseQuestion(q.question);
                 }
 
-                // 單選 / 複選 / 填空題型篩選比對
+                // 單選 / 複選 / 單複選 / 填空題型篩選比對
                 let matchQType = true;
-                if (selectedQuestionType !== 'ALL') {
+                if (selectedQuestionType === 'SINGLE_MULTI') {
+                    const detected = detectQuestionCategoryType(q);
+                    matchQType = detected === 'SINGLE' || detected === 'MULTI';
+                } else if (selectedQuestionType !== 'ALL') {
                     matchQType = detectQuestionCategoryType(q) === selectedQuestionType;
                 }
 
