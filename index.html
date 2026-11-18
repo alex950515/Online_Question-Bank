@@ -281,15 +281,51 @@ Win32 API
                     <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
                 </div>
 
-                <div class="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 px-1">
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
-                            <input type="radio" name="searchMode" value="include" checked onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 關鍵字包含
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
-                            <input type="radio" name="searchMode" value="exact" onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 精確比對
-                        </label>
+                <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-1">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex gap-3">
+                            <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                                <input type="radio" name="searchMode" value="include" checked onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 關鍵字包含
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                                <input type="radio" name="searchMode" value="exact" onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 精確比對
+                            </label>
+                        </div>
+
+                        <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+
+                        <!-- 中英文題目篩選切換 -->
+                        <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="語言篩選">
+                            <button type="button" onclick="setLanguageFilter('ALL')" id="langBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
+                                全部
+                            </button>
+                            <button type="button" onclick="setLanguageFilter('ZH')" id="langBtn_ZH" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                中文題
+                            </button>
+                            <button type="button" onclick="setLanguageFilter('EN')" id="langBtn_EN" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                英文題
+                            </button>
+                        </div>
+
+                        <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+
+                        <!-- 題型篩選切換 (單選 / 複選 / 填空) -->
+                        <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="題型篩選">
+                            <button type="button" onclick="setQuestionTypeFilter('ALL')" id="qTypeBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
+                                全部題型
+                            </button>
+                            <button type="button" onclick="setQuestionTypeFilter('SINGLE')" id="qTypeBtn_SINGLE" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                單選
+                            </button>
+                            <button type="button" onclick="setQuestionTypeFilter('MULTI')" id="qTypeBtn_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                複選
+                            </button>
+                            <button type="button" onclick="setQuestionTypeFilter('FILL')" id="qTypeBtn_FILL" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                填空
+                            </button>
+                        </div>
                     </div>
+
                     <span id="searchResultCount" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
                 </div>
             </div>
@@ -547,6 +583,8 @@ Win32 API
 
         let selectedCategory = 'ALL';
         let selectedSubCategory = 'ALL';
+        let selectedLanguage = 'ALL'; // 'ALL' | 'ZH' | 'EN'
+        let selectedQuestionType = 'ALL'; // 'ALL' | 'SINGLE' | 'MULTI' | 'FILL'
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
         let isEditingNotes = false;
@@ -995,6 +1033,62 @@ Win32 API
             performSearch();
         }
 
+        // 語言篩選切換函式
+        function setLanguageFilter(lang) {
+            selectedLanguage = lang;
+            ['ALL', 'ZH', 'EN'].forEach(code => {
+                const btn = document.getElementById(`langBtn_${code}`);
+                if (!btn) return;
+                if (code === lang) {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
+                }
+            });
+            performSearch();
+        }
+
+        // 判斷題目是否包含中文字元
+        function isChineseQuestion(text) {
+            return /[\u4e00-\u9fa5]/.test(text || '');
+        }
+
+        // 題型篩選切換函式
+        function setQuestionTypeFilter(qType) {
+            selectedQuestionType = qType;
+            ['ALL', 'SINGLE', 'MULTI', 'FILL'].forEach(code => {
+                const btn = document.getElementById(`qTypeBtn_${code}`);
+                if (!btn) return;
+                if (code === qType) {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
+                }
+            });
+            performSearch();
+        }
+
+        // 自動判別題型 ('FILL' | 'MULTI' | 'SINGLE')
+        function detectQuestionCategoryType(item) {
+            const qText = item.question || '';
+            const ansList = Array.isArray(item.answers) ? item.answers : [];
+            const validAnswers = ansList.filter(a => a && a.trim() !== '' && a.trim() !== '(未提供正確答案)');
+
+            // 1. 填空題特徵：題目中包含 [1] 或 [__1__] (支援任意數字編號)
+            const hasFillPlaceholder = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText);
+            if (hasFillPlaceholder) {
+                return 'FILL';
+            }
+
+            // 2. 複選題特徵：正確答案數量大於 1 個
+            if (validAnswers.length > 1) {
+                return 'MULTI';
+            }
+
+            // 3. 單選題：非填空題且單一答案
+            return 'SINGLE';
+        }
+
         // 刪除分類及其所有題目
         function deleteCategory(cat) {
             showConfirm(
@@ -1375,7 +1469,22 @@ Win32 API
             let list = window.questionBank.filter(q => {
                 const matchParent = selectedCategory === 'ALL' || q.category === selectedCategory;
                 const matchSub = selectedSubCategory === 'ALL' || q.subcategory === selectedSubCategory;
-                return matchParent && matchSub;
+                
+                // 中英文語言篩選比對
+                let matchLang = true;
+                if (selectedLanguage === 'ZH') {
+                    matchLang = isChineseQuestion(q.question);
+                } else if (selectedLanguage === 'EN') {
+                    matchLang = !isChineseQuestion(q.question);
+                }
+
+                // 單選 / 複選 / 填空題型篩選比對
+                let matchQType = true;
+                if (selectedQuestionType !== 'ALL') {
+                    matchQType = detectQuestionCategoryType(q) === selectedQuestionType;
+                }
+
+                return matchParent && matchSub && matchLang && matchQType;
             });
 
             if (query !== '') {
@@ -1405,7 +1514,7 @@ Win32 API
 
             container.innerHTML = list.map((item, index) => {
                 const highlightedQuestion = highlightText(item.question || '', query);
-                const isSingleAnswer = (item.answers || []).length === 1;
+                const isFillQuestion = detectQuestionCategoryType(item) === 'FILL';
 
                 const categoryLabel = item.subcategory 
                     ? `${item.category} / ${item.subcategory}` 
@@ -1447,7 +1556,7 @@ Win32 API
                         <div class="space-y-2 pt-1">
                             ${(item.answers || []).map((ans, aIdx) => {
                                 const highlightedAns = highlightText(ans, query);
-                                const clickAttrs = isSingleAnswer 
+                                const clickAttrs = isFillQuestion 
                                     ? `onclick="copySingleAnswer('${item.id}', ${aIdx})" class="w-full px-4 py-2.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 active:scale-[0.99] border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 text-xs font-semibold flex justify-between items-center transition-all shadow-sm cursor-pointer" title="點擊複製答案"` 
                                     : `class="w-full px-4 py-2.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 text-xs font-semibold flex justify-between items-center transition shadow-sm"`;
 
