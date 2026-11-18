@@ -3119,24 +3119,35 @@ Win32 API
                         return true;
                     }
                 } catch (e) {
-                    console.error('Firebase auto-reconnect error:', e);
+                    console.error('Auto connect failed:', e);
                 }
             }
             return false;
         }
 
-        function setCloudButtonsLoading(isLoading) {
-            const btnConfigs = [
+        function setCloudButtonsLoading(actionType, isLoading) {
+            const pushConfigs = [
                 { id: 'quizPushCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>推送中...</span>' },
-                { id: 'settingsPushCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>推送中...</span>' },
+                { id: 'settingsPushCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>推送中...</span>' }
+            ];
+            const pullConfigs = [
                 { id: 'quizPullCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>拉取中...</span>' },
                 { id: 'settingsPullCloudBtn', idleHtml: '<i class="fa-solid fa-cloud-arrow-down"></i> <span>拉取雲端</span>', loadingHtml: '<i class="fa-solid fa-spinner fa-spin"></i> <span>拉取中...</span>' }
             ];
-            btnConfigs.forEach(cfg => {
+
+            pushConfigs.forEach(cfg => {
                 const el = document.getElementById(cfg.id);
                 if (el) {
                     el.disabled = isLoading;
-                    el.innerHTML = isLoading ? cfg.loadingHtml : cfg.idleHtml;
+                    el.innerHTML = (isLoading && actionType === 'push') ? cfg.loadingHtml : cfg.idleHtml;
+                }
+            });
+
+            pullConfigs.forEach(cfg => {
+                const el = document.getElementById(cfg.id);
+                if (el) {
+                    el.disabled = isLoading;
+                    el.innerHTML = (isLoading && actionType === 'pull') ? cfg.loadingHtml : cfg.idleHtml;
                 }
             });
         }
@@ -3198,8 +3209,12 @@ Win32 API
             return `${baseUrl}/.json`;
         }
 
+        let isCloudSyncing = false;
+
         async function uploadToFirebase() {
-            setCloudButtonsLoading(true);
+            if (isCloudSyncing) return;
+            isCloudSyncing = true;
+            setCloudButtonsLoading('push', true);
             try {
                 const connected = await ensureFirebaseConnected();
                 if (!connected) {
@@ -3274,12 +3289,15 @@ Win32 API
                     : (err && err.message ? err.message : String(err));
                 showToast('推送至雲端失敗：' + msg, 'error');
             } finally {
-                setCloudButtonsLoading(false);
+                isCloudSyncing = false;
+                setCloudButtonsLoading('push', false);
             }
         }
 
         async function downloadFromFirebase() {
-            setCloudButtonsLoading(true);
+            if (isCloudSyncing) return;
+            isCloudSyncing = true;
+            setCloudButtonsLoading('pull', true);
             try {
                 const connected = await ensureFirebaseConnected();
                 if (!connected) {
@@ -3369,7 +3387,8 @@ Win32 API
                     : (err && err.message ? err.message : String(err));
                 showToast('拉取雲端資料失敗：' + msg, 'error');
             } finally {
-                setCloudButtonsLoading(false);
+                isCloudSyncing = false;
+                setCloudButtonsLoading('pull', false);
             }
         }
     </script>
