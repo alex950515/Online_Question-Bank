@@ -278,7 +278,10 @@ Win32 API
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3 shrink-0">
                 <div class="relative">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500 text-sm"></i>
-                    <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
+                    <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-9 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
+                    <button type="button" id="clearSearchBtn" onclick="clearSearchInput()" title="清空搜尋文字" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-slate-400 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 hover:bg-rose-100/80 dark:hover:bg-rose-950/60 items-center justify-center transition">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
                 </div>
 
                 <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-1">
@@ -1462,7 +1465,19 @@ Win32 API
 
         // 搜尋比對與渲染卡片
         function performSearch() {
-            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const searchInputEl = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('clearSearchBtn');
+            if (clearBtn && searchInputEl) {
+                if (searchInputEl.value.length > 0) {
+                    clearBtn.classList.remove('hidden');
+                    clearBtn.classList.add('flex');
+                } else {
+                    clearBtn.classList.add('hidden');
+                    clearBtn.classList.remove('flex');
+                }
+            }
+
+            const query = searchInputEl.value.trim().toLowerCase();
             const searchMode = document.querySelector('input[name="searchMode"]:checked').value;
             const container = document.getElementById('resultsContainer');
 
@@ -1571,6 +1586,16 @@ Win32 API
                     </div>
                 `;
             }).join('');
+        }
+
+        // 清空搜尋關鍵字輸入框並重新執行搜尋
+        function clearSearchInput() {
+            const searchInputEl = document.getElementById('searchInput');
+            if (searchInputEl) {
+                searchInputEl.value = '';
+                performSearch();
+                searchInputEl.focus();
+            }
         }
 
         // 複製文字至剪貼簿 (相容 iFrame)
