@@ -982,7 +982,7 @@ Win32 API
             function finalizeQuizItem() {
                 if (!cur) return;
                 let qText = cur.questionLines.join('\n').trim();
-                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
+                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/, '').trim();
 
                 const options = [];
                 cur.optionLines.forEach(optLine => {
