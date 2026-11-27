@@ -1233,21 +1233,6 @@
             saveQuizSetupPreferences();
         }
 
-        function adjustQuizCount(delta) {
-            const input = document.getElementById('quizCountInput');
-            if (!input) return;
-            const maxVal = parseInt(input.max, 10) || 999;
-            const curVal = parseInt(input.value, 10) || 0;
-            const nextVal = Math.min(maxVal, Math.max(1, curVal + delta));
-            input.value = nextVal;
-        }
-
-        function setQuizCountMax(totalPoolCount) {
-            const input = document.getElementById('quizCountInput');
-            if (!input) return;
-            input.value = Math.max(1, totalPoolCount);
-        }
-
         function shuffleArray(arr) {
             const copy = [...arr];
             for (let i = copy.length - 1; i > 0; i--) {
@@ -1875,6 +1860,12 @@
                 }
 
                 if (currentMode === 'CORRECT_ANS') {
+                    // 純題號格式：答案後出現「2. 」「(3)」「第4題」等新題號時，視為下一題開始 (避免 3.14 這類數字答案被誤判)
+                    if (/^(\d+[\.、\)](?!\d)|[\(（]\d+[\)）]|第\d+題)/.test(line)) {
+                        createNewQ();
+                        currentQ.questionLines.push(line);
+                        continue;
+                    }
                     currentQ.answerLines.push(line);
                     continue;
                 }
@@ -1891,15 +1882,8 @@
             let duplicateCount = 0;
 
             parsedQuestions.forEach(newQ => {
-                const isDuplicate = window.questionBank.some(existQ => {
-                    const sameCategory = (existQ.category || '').trim().toLowerCase() === (newQ.category || '').trim().toLowerCase();
-                    const sameSubCategory = (existQ.subcategory || '').trim().toLowerCase() === (newQ.subcategory || '').trim().toLowerCase();
-                    const sameQuestion = (existQ.question || '').trim().toLowerCase() === (newQ.question || '').trim().toLowerCase();
-                    const existAnsStr = (existQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
-                    const newAnsStr = (newQ.answers || []).map(a => a.trim().toLowerCase()).join('|||');
-                    const sameAnswers = existAnsStr === newAnsStr;
-                    return sameCategory && sameSubCategory && sameQuestion && sameAnswers;
-                });
+                const newKey = getQuestionDedupKey(newQ);
+                const isDuplicate = window.questionBank.some(existQ => getQuestionDedupKey(existQ) === newKey);
 
                 if (isDuplicate) {
                     duplicateCount++;
@@ -2002,26 +1986,6 @@
         function setQuestionTypeFilter(qType) {
             selectedQuestionType = qType;
             syncFilterButtonsUI();
-            performSearch();
-        }
-
-        // 判斷題目是否包含中文字元
-        function isChineseQuestion(text) {
-            return /[\u4e00-\u9fa5]/.test(text || '');
-        }
-
-        // 題型篩選切換函式
-        function setQuestionTypeFilter(qType) {
-            selectedQuestionType = qType;
-            ['ALL', 'SINGLE_MULTI', 'SINGLE', 'MULTI', 'FILL'].forEach(code => {
-                const btn = document.getElementById(`qTypeBtn_${code}`);
-                if (!btn) return;
-                if (code === qType) {
-                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition';
-                } else {
-                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
-                }
-            });
             performSearch();
         }
 
@@ -2413,14 +2377,17 @@
 
         // 正規化題目文字以便進行 HTML 考卷與題庫比對
         function normalizeQuestionForHtmlMatch(str) {
+            // 一字不漏精確比對：標點、全半形、大小寫、提示文字都必須完全相同。
+            // 只排除「不是題目文字本身」的差異：
+            //   1. 開頭題號 (如「1.」「第1題」「妖獸 1.」)
+            //   2. 填空格寫法 (HTML 輸入框 / [__1__] / [1] / ____ 皆視為同一個空格)
+            //   3. 空白與換行 (HTML 排版會自動加入空白)
             return String(str || '')
-                .replace(/\[\s*(?:__)?\d+(?:__)?\s*\]/g, ' ')
-                .replace(/_{2,}/g, ' ')
-                .replace(/^(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?\s*/i, '')
-                .replace(/^(?:\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/i, '')
-                .replace(/[\(（]\s*(?:請用小寫英文回答|Please\s+answer)[^\)）]*[\)）]/gi, '')
-                .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]+/g, '')
-                .toLowerCase();
+                .replace(/^\s*(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?\s*/i, '')
+                .replace(/^\s*(?:\d+[\.、\)](?!\d)|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/, '')
+                .replace(/\[\s*(?:__)?\d+(?:__)?\s*\]/g, '\u25A1')
+                .replace(/_{2,}/g, '\u25A1')
+                .replace(/\s+/g, '');
         }
 
         // 解析上傳的 HTML 考卷並擷取所有題目
@@ -2524,6 +2491,31 @@
             }
         }
 
+        // 計算考卷題目與題庫題目的相符分數：僅採「完全相同」精確比對 (相同 = 2；其餘一律 = 0)
+        function scoreHtmlMatch(htmlNorm, bankNorm) {
+            if (!htmlNorm || !bankNorm) return 0;
+            return htmlNorm === bankNorm ? 2 : 0;
+        }
+
+        // 以 HTML 考卷為主軸，逐題 (第 1 題、第 2 題…) 找出題庫中最相符的一題，
+        // 讓篩選結果的第 N 題 = 考卷的第 N 題；考卷有但題庫找不到的題目以 q = null 保留位置
+        function buildHtmlAlignedSlots(pool) {
+            const poolNorms = pool.map(q => normalizeQuestionForHtmlMatch(q.question));
+            return htmlFilterQuestions.map((hq, i) => {
+                let bestQ = null;
+                let bestScore = 0;
+                for (let k = 0; k < pool.length; k++) {
+                    const score = scoreHtmlMatch(hq.norm, poolNorms[k]);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestQ = pool[k];
+                        if (score === 2) break;
+                    }
+                }
+                return { no: i + 1, q: bestQ, htmlRaw: hq.raw };
+            });
+        }
+
         // 搜尋比對與渲染卡片
         function performSearch() {
             persistUiState();
@@ -2562,57 +2554,42 @@
                     matchQType = detectQuestionCategoryType(q) === selectedQuestionType;
                 }
 
-                let matchHtml = true;
-                if (htmlFilterQuestions.length > 0) {
-                    const bankNorm = normalizeQuestionForHtmlMatch(q.question);
-                    if (!bankNorm) {
-                        matchHtml = false;
-                    } else {
-                        matchHtml = htmlFilterQuestions.some(hq => {
-                            if (hq.norm === bankNorm) return true;
-                            if (hq.norm.length >= 10 && bankNorm.length >= 10) {
-                                return hq.norm.includes(bankNorm) || bankNorm.includes(hq.norm);
-                            }
-                            return false;
-                        });
-                    }
-                }
-
-                return matchParent && matchSub && matchLang && matchQType && matchHtml;
+                return matchParent && matchSub && matchLang && matchQType;
             });
 
-            // 若已套用 HTML 篩選，依考卷內題目出現順序排列結果
+            const matchesQuery = (q) => {
+                if (query === '') return true;
+                const qText = (q.question || '').toLowerCase();
+                const aText = (q.answers || []).join(' ').toLowerCase();
+                if (searchMode === 'exact') {
+                    return qText === query || aText === query;
+                }
+                return qText.includes(query) || aText.includes(query);
+            };
+
+            // displayList：{ no: 顯示題號, q: 題庫題目 (null = 考卷有但題庫找不到), htmlRaw }
+            let displayList;
+            let missingCount = 0;
             if (htmlFilterQuestions.length > 0) {
-                const getHtmlOrder = (q) => {
-                    const bankNorm = normalizeQuestionForHtmlMatch(q.question);
-                    const idx = htmlFilterQuestions.findIndex(hq =>
-                        hq.norm === bankNorm ||
-                        (hq.norm.length >= 10 && bankNorm.length >= 10 && (hq.norm.includes(bankNorm) || bankNorm.includes(hq.norm)))
-                    );
-                    return idx === -1 ? 99999 : idx;
-                };
-                list.sort((a, b) => getHtmlOrder(a) - getHtmlOrder(b));
+                // 已套用 HTML 篩選：依考卷題號一對一排列 (考卷第 N 題 → 結果第 N 題)
+                displayList = buildHtmlAlignedSlots(list);
+                missingCount = displayList.filter(s => !s.q).length;
+                if (query !== '') {
+                    displayList = displayList.filter(s => s.q && matchesQuery(s.q));
+                }
+            } else {
+                displayList = list.filter(matchesQuery).map((q, i) => ({ no: i + 1, q, htmlRaw: '' }));
             }
+            list = displayList.filter(s => s.q).map(s => s.q);
 
-            if (query !== '') {
-                list = list.filter(q => {
-                    const qText = (q.question || '').toLowerCase();
-                    const aText = (q.answers || []).join(' ').toLowerCase();
-
-                    if (searchMode === 'exact') {
-                        return qText === query || aText === query;
-                    } else {
-                        return qText.includes(query) || aText.includes(query);
-                    }
-                });
-            }
-
-            const countText = `共 ${list.length} 題`;
+            const countText = (htmlFilterQuestions.length > 0 && missingCount > 0 && query === '')
+                ? `共 ${list.length} 題（缺 ${missingCount}）`
+                : `共 ${list.length} 題`;
             document.getElementById('searchResultCount').innerText = countText;
             const collapsedCountEl = document.getElementById('searchResultCountCollapsed');
             if (collapsedCountEl) collapsedCountEl.innerText = countText;
 
-            if (list.length === 0) {
+            if (displayList.length === 0) {
                 container.innerHTML = `
                     <div class="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-center text-slate-400 dark:text-slate-500 text-xs shadow-sm">
                         <i class="fa-regular fa-folder-open text-3xl mb-2 text-slate-300 dark:text-slate-600"></i>
@@ -2622,7 +2599,19 @@
                 return;
             }
 
-            container.innerHTML = list.map((item, index) => {
+            container.innerHTML = displayList.map(slot => {
+                const index = slot.no - 1;
+                const item = slot.q;
+                if (!item) {
+                    return `
+                    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-dashed border-rose-300 dark:border-rose-800/70 shadow-sm space-y-2">
+                        <div class="text-sm font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <span class="inline-block bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 text-xs px-2 py-0.5 rounded-md font-extrabold mr-1.5">${slot.no}</span>${escapeHtml(slot.htmlRaw)}
+                        </div>
+                        <p class="text-[11px] font-semibold text-rose-600 dark:text-rose-400"><i class="fa-solid fa-circle-exclamation mr-1"></i>題庫中找不到此考卷題目</p>
+                    </div>
+                    `;
+                }
                 const highlightedQuestion = highlightText(item.question || '', query);
                 const isFillQuestion = detectQuestionCategoryType(item) === 'FILL';
 
@@ -2976,20 +2965,39 @@
             );
         }
 
+        // 去重比對用的文字正規化：全形/半形統一 (NFKC)、連續空白合併、忽略大小寫
+        function normalizeDedupText(v) {
+            return String(v === null || v === undefined ? '' : v)
+                .normalize('NFKC')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        }
+
+        // 產生題目的去重鍵 (母類別 + 子類別 + 題目 + 答案)
+        function getQuestionDedupKey(q) {
+            const answers = Array.isArray(q.answers) ? q.answers : (q.answers ? [q.answers] : []);
+            return [
+                normalizeDedupText(q.category),
+                normalizeDedupText(q.subcategory),
+                normalizeDedupText(q.question),
+                answers.map(normalizeDedupText).filter(Boolean).join('|||')
+            ].join('___');
+        }
+
         // 手動清理重複題目
         function removeDuplicateQuestions() {
             const initialCount = window.questionBank.length;
             const uniqueMap = new Map();
 
             window.questionBank.forEach(q => {
-                const catKey = (q.category || '').trim().toLowerCase();
-                const subCatKey = (q.subcategory || '').trim().toLowerCase();
-                const qKey = (q.question || '').trim().toLowerCase();
-                const aKey = (q.answers || []).map(a => a.trim().toLowerCase()).join('|||');
-                const combinedKey = `${catKey}___${subCatKey}___${qKey}___${aKey}`;
-
-                if (!uniqueMap.has(combinedKey)) {
+                const combinedKey = getQuestionDedupKey(q);
+                const kept = uniqueMap.get(combinedKey);
+                if (!kept) {
                     uniqueMap.set(combinedKey, q);
+                } else if (!kept.image && q.image) {
+                    // 保留的那題沒有圖片、重複題有圖片時，把圖片併入保留題，避免圖片遺失
+                    kept.image = q.image;
                 }
             });
 
@@ -2997,15 +3005,21 @@
             const removedCount = initialCount - window.questionBank.length;
 
             saveAndRefresh();
-            showToast(`重複題目清理完畢，共移除 ${removedCount} 題`, 'success');
+            if (removedCount > 0) {
+                showToast(`重複題目清理完畢，共移除 ${removedCount} 題`, 'success');
+            } else {
+                showToast('未發現重複題目', 'info');
+            }
         }
 
         // 關鍵字高亮標記功能
         function highlightText(text, query) {
             if (!text) return '';
-            if (!query) return text;
-            const regex = new RegExp(`(${query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')})`, 'gi');
-            return text.replace(regex, '<span class="highlight">$1</span>');
+            const safeText = escapeHtml(text);
+            if (!query) return safeText;
+            const safeQuery = escapeHtml(query);
+            const regex = new RegExp(`(${safeQuery.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')})`, 'gi');
+            return safeText.replace(regex, '<span class="highlight">$1</span>');
         }
 
         // 清空整個資料庫
@@ -3095,6 +3109,8 @@
                     }
                 } catch (err) {
                     showToast('讀取失敗：' + err.message, 'error');
+                } finally {
+                    event.target.value = '';
                 }
             };
             reader.readAsText(file);
@@ -3549,7 +3565,49 @@
             };
         }
 
+        // 修正資料格式 (舊版 JSON / 雲端資料中 answers 可能為字串或物件)，避免後續功能因型別錯誤而失效
+        function toStringList(val) {
+            if (Array.isArray(val)) return val.filter(v => v !== null && v !== undefined).map(v => String(v));
+            if (val && typeof val === 'object') return Object.keys(val).sort((a, b) => Number(a) - Number(b)).map(k => val[k]).filter(v => v !== null && v !== undefined).map(v => String(v));
+            if (val === null || val === undefined || val === '') return [];
+            return [String(val)];
+        }
+
+        function sanitizeQuestionBank() {
+            if (!Array.isArray(window.questionBank)) window.questionBank = normalizeFirebaseArray(window.questionBank);
+            window.questionBank = window.questionBank.filter(q => q && typeof q === 'object');
+            window.questionBank.forEach((q, i) => {
+                if (q.id === undefined || q.id === null || q.id === '') q.id = 'q_fix_' + Date.now() + '_' + i;
+                q.category = q.category ? String(q.category) : '未分類';
+                q.subcategory = q.subcategory ? String(q.subcategory) : '';
+                q.question = q.question === null || q.question === undefined ? '' : String(q.question);
+                q.answers = toStringList(q.answers);
+                if (q.answers.length === 0) q.answers = ['(未提供正確答案)'];
+                q.image = typeof q.image === 'string' ? q.image : '';
+            });
+        }
+
+        function sanitizeQuizBank() {
+            if (!Array.isArray(window.quizBank)) window.quizBank = normalizeFirebaseArray(window.quizBank);
+            window.quizBank = window.quizBank.filter(q => q && typeof q === 'object');
+            window.quizBank.forEach((q, i) => {
+                if (q.id === undefined || q.id === null || q.id === '') q.id = 'qz_fix_' + Date.now() + '_' + i;
+                q.category = q.category ? String(q.category) : '未分類';
+                q.subcategory = q.subcategory ? String(q.subcategory) : '';
+                q.question = q.question === null || q.question === undefined ? '' : String(q.question);
+                q.options = toStringList(q.options);
+                q.answers = toStringList(q.answers);
+                if (q.answers.length === 0) q.answers = ['(未提供答案)'];
+                if (!['SINGLE', 'MULTI', 'FILL'].includes(q.qType)) {
+                    const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(q.question) || q.options.length === 0;
+                    q.qType = isFill ? 'FILL' : (q.answers.length > 1 ? 'MULTI' : 'SINGLE');
+                }
+            });
+            if (!Array.isArray(window.quizHistory)) window.quizHistory = normalizeFirebaseArray(window.quizHistory);
+        }
+
         function saveAndRefresh() {
+            sanitizeQuestionBank();
             localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
             const badge = document.getElementById('questionCountBadge');
             if (badge) badge.innerText = `${window.questionBank.length} 題`;
@@ -3708,6 +3766,7 @@
         }
 
         function refreshQuizModeUI() {
+            sanitizeQuizBank();
             const totalBadge = document.getElementById('quizBankTotalBadge');
             if (totalBadge) totalBadge.innerText = `測驗庫 ${(window.quizBank || []).length} 題`;
 
