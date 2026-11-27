@@ -448,6 +448,9 @@
                     <button onclick="parseAndImportQuizBank()" class="flex-1 bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
                         <i class="fa-solid fa-plus"></i> 匯入測驗題庫
                     </button>
+                    <button onclick="removeDuplicateQuizQuestions()" class="bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600 dark:hover:text-amber-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition" title="移除題目與答案完全相同的重複測驗題">
+                        去重
+                    </button>
                     <button onclick="clearQuizBank()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition">
                         清空測驗題庫
                     </button>
@@ -3859,6 +3862,145 @@
             reader.readAsText(file);
         }
 
+        // 測驗題去重鍵：同一母類別/子類別下，題目與答案「完全相同」(僅忽略前後空白；選擇題答案不分順序)
+        function getQuizDedupKey(q) {
+            const answers = (q.answers || []).map(a => String(a).trim());
+            if (q.qType !== 'FILL') answers.sort();
+            return [
+                String(q.category || '').trim(),
+                String(q.subcategory || '').trim(),
+                String(q.question || '').trim(),
+                answers.join('\u0001')
+            ].join('\u0002');
+        }
+
+        function removeDuplicateQuizQuestions() {
+            sanitizeQuizBank();
+            const initial = window.quizBank.length;
+            const seen = new Set();
+            window.quizBank = window.quizBank.filter(q => {
+                const key = getQuizDedupKey(q);
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            const removed = initial - window.quizBank.length;
+            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+            refreshQuizModeUI();
+            if (removed > 0) {
+                showToast(`測驗題庫去重完畢，共移除 ${removed} 題`, 'success');
+            } else {
+                showToast('測驗題庫未發現重複題目', 'info');
+            }
+        }
+
+        // 測驗題庫文字解析 (逐行狀態機，不再以「空行」切題)
+        // 新題開始：「題目：」、題號 (1. / (1) / 第1題)、或「答案之後隔一空行的新內容」
+        // 沒有答案的段落 (例如章節標題「第一章 單選題」) 不會被當成題目
+        function parseQuizBankText(raw) {
+            const optionRe = /^(?:[\(（]\s*([A-Ha-h])\s*[\)）]|([A-Ha-h])\s*[\.．、\)）:：])\s*/;
+            const numberRe = /^(?:\d+\s*[\.．、\)）](?!\d)|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/;
+            const ansRe = /^(?:正確答案|答案|答)\s*[：:]\s*/;
+            const results = [];
+            let skipped = [];
+            let cur = null;
+            let mode = 'Q';
+            let blankAfterAns = false;
+
+            const finish = () => {
+                if (!cur) return;
+                const qText = cur.q.join('\n').replace(/^題目[：:]\s*/, '').replace(numberRe, '').trim();
+                const hasContent = cur.q.length || cur.opts.length || cur.ans.length;
+                if (qText && cur.ans.length > 0) {
+                    results.push({ question: qText, options: cur.opts, answers: cur.ans });
+                } else if (hasContent) {
+                    skipped.push((qText || cur.opts[0] || cur.ans[0] || '').slice(0, 30));
+                }
+                cur = null;
+            };
+            const start = () => { finish(); cur = { q: [], opts: [], ans: [] }; mode = 'Q'; blankAfterAns = false; };
+
+            raw.split(/\r?\n/).forEach(rawLine => {
+                const line = rawLine.trim();
+                if (!line) {
+                    if (cur && mode === 'ANS') blankAfterAns = true;
+                    return;
+                }
+                if (/^題目[：:]/.test(line)) {
+                    start();
+                    const rest = line.replace(/^題目[：:]\s*/, '').trim();
+                    if (rest) cur.q.push(rest);
+                    return;
+                }
+                if (/^選項[：:]/.test(line)) {
+                    if (!cur) start();
+                    mode = 'OPT';
+                    const rest = line.replace(/^選項[：:]\s*/, '').trim();
+                    if (rest) cur.opts.push(rest.replace(optionRe, '').trim());
+                    return;
+                }
+                if (ansRe.test(line)) {
+                    if (!cur) start();
+                    mode = 'ANS';
+                    blankAfterAns = false;
+                    const rest = line.replace(ansRe, '').trim();
+                    if (rest) cur.ans.push(rest);
+                    return;
+                }
+                if (mode === 'ANS') {
+                    if (blankAfterAns || numberRe.test(line)) {
+                        start();
+                        cur.q.push(line);
+                    } else {
+                        cur.ans.push(line);
+                    }
+                    return;
+                }
+                if (!cur) start();
+                if (optionRe.test(line)) {
+                    mode = 'OPT';
+                    cur.opts.push(line.replace(optionRe, '').trim());
+                    return;
+                }
+                if (mode === 'OPT') {
+                    if (numberRe.test(line)) {
+                        start();
+                        cur.q.push(line);
+                    } else {
+                        cur.opts.push(line);
+                    }
+                    return;
+                }
+                // mode === 'Q'：題號出現代表新題 (前面累積的文字若無答案會被略過，例如章節標題)
+                if (numberRe.test(line) && cur.q.length > 0) {
+                    start();
+                }
+                cur.q.push(line);
+            });
+            finish();
+
+            // 答案以字母 (A / AC / A,C / (A)) 或「A. 選項文字」表示時，自動對應成選項內容，確保能正確批改
+            results.forEach(item => {
+                if (item.options.length === 0) return;
+                const optSet = new Set(item.options);
+                const mapped = [];
+                item.answers.forEach(a => {
+                    if (optSet.has(a)) { mapped.push(a); return; }
+                    const stripped = a.replace(optionRe, '').trim();
+                    if (stripped !== a && optSet.has(stripped)) { mapped.push(stripped); return; }
+                    const compact = a.replace(/[\s,，、;；\(\)（）]/g, '');
+                    if (/^[A-Ha-h]+$/.test(compact) && compact.toUpperCase().split('').every(ch => ch.charCodeAt(0) - 65 < item.options.length)) {
+                        compact.toUpperCase().split('').forEach(ch => mapped.push(item.options[ch.charCodeAt(0) - 65]));
+                        return;
+                    }
+                    mapped.push(a);
+                });
+                item.answers = [...new Set(mapped)];
+            });
+
+            return { results, skipped };
+        }
+
         function parseAndImportQuizBank() {
             const ta = document.getElementById('quizImportTextarea');
             const raw = ta ? ta.value.trim() : '';
@@ -3870,66 +4012,51 @@
                 return;
             }
 
-            const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+            sanitizeQuizBank();
+            const { results, skipped } = parseQuizBankText(raw);
+            if (results.length === 0) {
+                showToast('未解析出有效題目 (每題都需要「正確答案：」)，請檢查格式！', 'error');
+                return;
+            }
+
+            const existingKeys = new Set(window.quizBank.map(getQuizDedupKey));
             const imported = [];
-
-            blocks.forEach((block, bIdx) => {
-                const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-                let qLines = [];
-                let options = [];
-                let answers = [];
-                let mode = 'Q';
-
-                lines.forEach(line => {
-                    if (/^(題目[：:])/i.test(line)) {
-                        mode = 'Q';
-                        const rest = line.replace(/^題目[：:]\s*/i, '').trim();
-                        if (rest) qLines.push(rest);
-                    } else if (/^(選項[：:])/i.test(line)) {
-                        mode = 'OPT';
-                        const rest = line.replace(/^選項[：:]\s*/i, '').trim();
-                        if (rest) options.push(rest);
-                    } else if (/^(正確答案[：:]|答案[：:]|答[：:])/i.test(line)) {
-                        mode = 'ANS';
-                        const rest = line.replace(/^(正確答案[：:]|答案[：:]|答[：:])\s*/i, '').trim();
-                        if (rest) answers.push(rest);
-                    } else if (/^[A-Ha-h][\.、\)]\s+/.test(line) && mode !== 'ANS') {
-                        mode = 'OPT';
-                        options.push(line.replace(/^[A-Ha-h][\.、\)]\s+/, '').trim());
-                    } else {
-                        if (mode === 'Q') qLines.push(line);
-                        else if (mode === 'OPT') options.push(line.replace(/^[A-Ha-h][\.、\)]\s+/, '').trim());
-                        else if (mode === 'ANS') answers.push(line);
-                    }
-                });
-
-                let qText = qLines.join('\n').replace(/^(?:\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/, '').trim();
-                if (!qText) return;
-
-                const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(qText) || options.length === 0;
-                const qType = isFill ? 'FILL' : (answers.length > 1 ? 'MULTI' : 'SINGLE');
-
-                imported.push({
+            let duplicateCount = 0;
+            results.forEach((r, bIdx) => {
+                const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(r.question) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(r.question) || r.options.length === 0;
+                const qType = isFill ? 'FILL' : (r.answers.length > 1 ? 'MULTI' : 'SINGLE');
+                const item = {
                     id: 'qz_' + Date.now() + '_' + bIdx + '_' + Math.floor(Math.random() * 10000),
                     category,
                     subcategory,
                     qType,
-                    question: qText,
-                    options,
-                    answers: answers.length > 0 ? answers : ['(未提供答案)']
-                });
+                    question: r.question,
+                    options: r.options,
+                    answers: r.answers
+                };
+                const key = getQuizDedupKey(item);
+                if (existingKeys.has(key)) {
+                    duplicateCount++;
+                    return;
+                }
+                existingKeys.add(key);
+                imported.push(item);
             });
 
-            if (imported.length === 0) {
-                showToast('未解析出有效題目，請檢查格式！', 'error');
-                return;
-            }
-
-            window.quizBank = [...(window.quizBank || []), ...imported];
+            window.quizBank = [...window.quizBank, ...imported];
             localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
             if (ta) ta.value = '';
             refreshQuizModeUI();
-            showToast(`成功匯入 ${imported.length} 題至測驗題庫！`, 'success');
+
+            let msg = `成功匯入 ${imported.length} 題至測驗題庫`;
+            const notes = [];
+            if (duplicateCount > 0) notes.push(`跳過重複 ${duplicateCount} 題`);
+            if (skipped.length > 0) notes.push(`略過無答案段落 ${skipped.length} 段`);
+            if (notes.length) msg += `（${notes.join('、')}）`;
+            showToast(msg, 'success');
+            if (skipped.length > 0) {
+                console.info('[測驗匯入] 以下段落沒有「正確答案：」，未匯入：', skipped);
+            }
         }
 
         function clearQuizBank() {
