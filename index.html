@@ -997,7 +997,7 @@ Win32 API
                 });
 
                 if (qText && answers.length > 0) {
-                    const hasFillBlank = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText);
+                    const hasFillBlank = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(qText);
                     let qType = 'SINGLE';
                     if (hasFillBlank) {
                         qType = 'FILL';
@@ -1486,9 +1486,16 @@ Win32 API
             selectedQuestions = selectedQuestions.slice(0, limit);
 
             const sessionItems = selectedQuestions.map(q => {
-                const displayOptions = (q.qType !== 'FILL' && orderVal === 'SHUFFLE')
-                    ? shuffleArray(q.options || [])
-                    : [...(q.options || [])];
+                const rawOptions = [...(q.options || [])];
+                let displayOptions = rawOptions;
+                if (q.qType !== 'FILL' && rawOptions.length > 1) {
+                    displayOptions = shuffleArray(rawOptions);
+                    let attempts = 0;
+                    while (attempts < 5 && displayOptions.every((opt, idx) => opt === rawOptions[idx])) {
+                        displayOptions = shuffleArray(rawOptions);
+                        attempts++;
+                    }
+                }
 
                 const blankMatches = (q.question || '').match(/\[\s*(?:__)?\d+(?:__)?\s*\]/g);
                 const blankCount = q.qType === 'FILL'
@@ -2213,7 +2220,7 @@ Win32 API
             const ansList = Array.isArray(item.answers) ? item.answers : [];
             const validAnswers = ansList.filter(a => a && a.trim() !== '' && a.trim() !== '(未提供正確答案)');
 
-            const hasFillPlaceholder = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText);
+            const hasFillPlaceholder = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(qText);
             if (hasFillPlaceholder) {
                 return 'FILL';
             }
