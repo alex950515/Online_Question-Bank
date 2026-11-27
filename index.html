@@ -213,28 +213,16 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">貼上純文字題目 (支援測驗成績萃取與對錯判讀)</label>
-                    <textarea id="importTextarea" rows="6" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="題目：what is the name circled in this figure[__1__]? 
-你的答案：
-kernel
-正確答案：
-kernel
-得分：1 / 1
-
-題目：哪個是提供給 Windows 系統最常見的 API？
-你的答案：
-Win32 API
-正確答案：
-Win32 API
-得分：1 / 1"></textarea>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">貼上題目文字</label>
+                    <textarea id="importTextarea" rows="5" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="支援貼上考試成績單或純題目格式，系統將自動過濾個人作答與得分並匯入..."></textarea>
                 </div>
 
                 <div class="flex flex-wrap gap-2 pt-1">
                     <button onclick="parseAndImportText()" class="flex-1 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-600 hover:to-sky-500 text-slate-950 text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-plus text-sky-950"></i> 智能解析與匯入
+                        <i class="fa-solid fa-plus"></i> 解析並匯入
                     </button>
-                    <button onclick="removeDuplicateQuestions()" class="bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/50 text-xs py-2 px-2.5 rounded-xl font-medium transition flex items-center gap-1" title="一鍵清理重複題目">
-                        <i class="fa-solid fa-broom"></i> 清理重複
+                    <button onclick="removeDuplicateQuestions()" class="bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600 dark:hover:text-amber-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition" title="自動移除完全相同的重複題目">
+                        去重
                     </button>
                     <button onclick="clearDatabase()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition">
                         清空
@@ -242,11 +230,11 @@ Win32 API
                 </div>
             </div>
 
-            <!-- 2. 分類階層篩選面板 -->
+            <!-- 2. 類別階層篩選面板 -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 space-y-3.5">
                 <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
                     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <i class="fa-solid fa-tags text-sky-500 dark:text-sky-400"></i> 分類階層篩選
+                        <i class="fa-solid fa-folder-tree text-sky-500 dark:text-sky-400"></i> 題庫分類階層
                     </h2>
                     <button id="toggleReorderBtn" onclick="toggleReorderMode()" class="px-2.5 py-1 text-xs font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700">
                         <i id="toggleReorderIcon" class="fa-solid fa-pen-to-square text-sky-500"></i>
@@ -254,18 +242,17 @@ Win32 API
                     </button>
                 </div>
 
-                <!-- 母類別容器 -->
                 <div>
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">母類別 (Parent)</p>
                     <div id="categoryList" class="flex flex-wrap gap-1.5">
-                        <!-- 母類別動態渲染 -->
+                        <!-- 動態渲染母類別 -->
                     </div>
                 </div>
-                <!-- 子類別容器 -->
+
                 <div id="subCategorySection" class="hidden pt-2.5 border-t border-slate-100 dark:border-slate-800">
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mb-1.5 uppercase tracking-wider">子類別 (Subcategory)</p>
                     <div id="subCategoryList" class="flex flex-wrap gap-1.5">
-                        <!-- 子類別動態渲染 -->
+                        <!-- 動態渲染子類別 -->
                     </div>
                 </div>
             </div>
@@ -300,64 +287,102 @@ Win32 API
         </section>
 
         <!-- 右側檢索區塊 (搜尋列固定頂部，清單滾動) -->
-        <section class="lg:col-span-2 flex flex-col space-y-4 lg:h-full lg:overflow-hidden">
+        <section class="lg:col-span-2 flex flex-col space-y-3 lg:h-full lg:overflow-hidden">
 
-            <!-- 搜尋框區域 (固定於頂部) -->
-            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3 shrink-0">
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500 text-sm"></i>
-                    <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-9 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
-                    <button type="button" id="clearSearchBtn" onclick="clearSearchInput()" title="清空搜尋文字" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-slate-400 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 hover:bg-rose-100/80 dark:hover:bg-rose-950/60 items-center justify-center transition">
-                        <i class="fa-solid fa-xmark text-xs"></i>
+            <!-- 搜尋框區域 (固定於頂部，支援折疊) -->
+            <div class="bg-white dark:bg-slate-900 px-4 py-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-2.5 shrink-0">
+                <!-- 收合時顯示的精簡列 -->
+                <div id="searchFilterCollapsedBar" class="hidden justify-between items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                            <i class="fa-solid fa-magnifying-glass text-sky-500 dark:text-sky-400"></i> 題庫搜尋與篩選（已折疊）
+                        </span>
+                        <span id="searchResultCountCollapsed" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
+                    </div>
+                    <button type="button" onclick="toggleSearchSection()" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-1.5" title="展開搜尋篩選區塊">
+                        <i class="fa-solid fa-chevron-down text-[10px] text-sky-500"></i>
+                        <span>展開</span>
                     </button>
                 </div>
 
-                <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-1">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <div class="flex gap-3">
-                            <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
-                                <input type="radio" name="searchMode" value="include" checked onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 關鍵字包含
-                            </label>
-                            <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
-                                <input type="radio" name="searchMode" value="exact" onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 精確比對
-                            </label>
+                <!-- 展開時的完整搜尋與篩選區 -->
+                <div id="searchFilterCollapsibleBody" class="space-y-2">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500 text-sm"></i>
+                        <input type="text" id="searchInput" oninput="performSearch()" class="w-full pl-10 pr-9 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 outline-none transition" placeholder="搜尋題目、關鍵字或選項內容...">
+                        <button type="button" id="clearSearchBtn" onclick="clearSearchInput()" title="清空搜尋文字" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-slate-400 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 hover:bg-rose-100/80 dark:hover:bg-rose-950/60 items-center justify-center transition">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-slate-500 dark:text-slate-400 px-0.5">
+                        <div class="flex flex-col gap-1.5">
+                            <div class="flex gap-3">
+                                <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                                    <input type="radio" name="searchMode" value="include" checked onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 關鍵字包含
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-200">
+                                    <input type="radio" name="searchMode" value="exact" onchange="performSearch()" class="text-sky-500 focus:ring-sky-400"> 精確比對
+                                </label>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- 中英文題目篩選切換 -->
+                                <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="語言篩選">
+                                    <button type="button" onclick="setLanguageFilter('ALL')" id="langBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
+                                        全部
+                                    </button>
+                                    <button type="button" onclick="setLanguageFilter('ZH')" id="langBtn_ZH" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        中文題
+                                    </button>
+                                    <button type="button" onclick="setLanguageFilter('EN')" id="langBtn_EN" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        英文題
+                                    </button>
+                                </div>
+                                <!-- 題型篩選切換 (單選 / 複選 / 單複選 / 填空) -->
+                                <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="題型篩選">
+                                    <button type="button" onclick="setQuestionTypeFilter('ALL')" id="qTypeBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
+                                        全部題型
+                                    </button>
+                                    <button type="button" onclick="setQuestionTypeFilter('SINGLE')" id="qTypeBtn_SINGLE" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        單選
+                                    </button>
+                                    <button type="button" onclick="setQuestionTypeFilter('MULTI')" id="qTypeBtn_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        複選
+                                    </button>
+                                    <button type="button" onclick="setQuestionTypeFilter('SINGLE_MULTI')" id="qTypeBtn_SINGLE_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        單/複選
+                                    </button>
+                                    <button type="button" onclick="setQuestionTypeFilter('FILL')" id="qTypeBtn_FILL" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
+                                        填空
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 text-[11px] font-semibold cursor-pointer transition shrink-0" title="讀取 HTML 篩選題目">
+                                    <i class="fa-solid fa-file-code"></i>
+                                    <span>讀取 HTML 篩選題目</span>
+                                    <input type="file" id="htmlFilterFileInput" accept=".html,.htm" class="hidden" onchange="handleHtmlFilterFileUpload(event)">
+                                </label>
+                                <span id="htmlFilterStatusBadge" class="hidden text-[11px] text-indigo-700 dark:text-indigo-300 font-bold truncate max-w-[140px]"></span>
+                                <button type="button" id="clearHtmlFilterBtn" onclick="clearHtmlFilter()" class="hidden px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60 items-center gap-1 transition shrink-0" title="清除 HTML 篩選">
+                                    <i class="fa-solid fa-xmark"></i> 清除
+                                </button>
+                                <div class="flex items-center gap-2 sm:hidden ml-auto">
+                                    <span id="searchResultCountMobile" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
-
-                        <!-- 中英文題目篩選切換 -->
-                        <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="語言篩選">
-                            <button type="button" onclick="setLanguageFilter('ALL')" id="langBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
-                                全部
-                            </button>
-                            <button type="button" onclick="setLanguageFilter('ZH')" id="langBtn_ZH" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                中文題
-                            </button>
-                            <button type="button" onclick="setLanguageFilter('EN')" id="langBtn_EN" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                英文題
-                            </button>
-                        </div>
-                        <!-- 題型篩選切換 (單選 / 複選 / 單複選 / 填空) -->
-                        <div class="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700" role="group" aria-label="題型篩選">
-                            <button type="button" onclick="setQuestionTypeFilter('ALL')" id="qTypeBtn_ALL" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition">
-                                全部題型
-                            </button>
-                            <button type="button" onclick="setQuestionTypeFilter('SINGLE')" id="qTypeBtn_SINGLE" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                單選
-                            </button>
-                            <button type="button" onclick="setQuestionTypeFilter('MULTI')" id="qTypeBtn_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                複選
-                            </button>
-                            <button type="button" onclick="setQuestionTypeFilter('SINGLE_MULTI')" id="qTypeBtn_SINGLE_MULTI" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                單/複選
-                            </button>
-                            <button type="button" onclick="setQuestionTypeFilter('FILL')" id="qTypeBtn_FILL" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition">
-                                填空
+                        <div class="flex items-center gap-2 ml-auto">
+                            <span id="searchResultCount" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
+                            <button type="button" id="toggleSearchSectionBtn" onclick="toggleSearchSection()" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-1" title="折疊搜尋篩選區塊">
+                                <i id="toggleSearchSectionIcon" class="fa-solid fa-chevron-up text-[10px] text-sky-500"></i>
+                                <span id="toggleSearchSectionText">折疊</span>
                             </button>
                         </div>
                     </div>
-
-                    <span id="searchResultCount" class="text-sky-900 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/60 px-2.5 py-0.5 rounded-full font-bold text-[11px] border border-sky-100 dark:border-sky-900/40">共 0 題</span>
                 </div>
             </div>
 
@@ -742,6 +767,9 @@ Win32 API
         let selectedSubCategory = savedUiState.selectedSubCategory || 'ALL';
         let selectedLanguage = savedUiState.selectedLanguage || 'ALL'; // 'ALL' | 'ZH' | 'EN'
         let selectedQuestionType = savedUiState.selectedQuestionType || 'ALL'; // 'ALL' | 'SINGLE_MULTI' | 'SINGLE' | 'MULTI' | 'FILL'
+        let isSearchSectionCollapsed = Boolean(savedUiState.isSearchSectionCollapsed);
+        let htmlFilterQuestions = []; // 從 HTML 考卷解析出的待篩選題目清單
+        let htmlFilterFileName = '';
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
         let isEditingNotes = false;
@@ -768,6 +796,7 @@ Win32 API
                 selectedSubCategory,
                 selectedLanguage,
                 selectedQuestionType,
+                isSearchSectionCollapsed,
                 searchQuery: searchInputEl ? searchInputEl.value : (savedUiState.searchQuery || ''),
                 searchMode: searchModeEl ? searchModeEl.value : (savedUiState.searchMode || 'include'),
                 quizSelectedCategory,
@@ -799,618 +828,33 @@ Win32 API
                     ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition'
                     : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
             });
+            applySearchSectionCollapseUI();
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initTheme();
+        function applySearchSectionCollapseUI() {
+            const bodyEl = document.getElementById('searchFilterCollapsibleBody');
+            const collapsedBarEl = document.getElementById('searchFilterCollapsedBar');
+            if (!bodyEl) return;
 
-            // 還原搜尋框文字、搜尋比對模式及篩選按鈕樣式
-            const searchInputEl = document.getElementById('searchInput');
-            if (searchInputEl && typeof savedUiState.searchQuery === 'string') {
-                searchInputEl.value = savedUiState.searchQuery;
-            }
-            if (savedUiState.searchMode) {
-                const radioEl = document.querySelector(`input[name="searchMode"][value="${savedUiState.searchMode}"]`);
-                if (radioEl) radioEl.checked = true;
-            }
-            syncFilterButtonsUI();
-
-            saveAndRefresh();
-            loadPracticeNotes();
-            refreshQuizModeUI();
-
-            // 還原最後停留的系統模式（題庫總覽 或 測驗模式）
-            if (currentSystemMode === 'quiz') {
-                switchSystemMode('quiz');
-            } else {
-                switchSystemMode('overview');
-            }
-            
-            // 自動嘗試載入先前儲存的 Firebase 配置（若模組尚未完成掛載則短暫延遲重試）
-            const savedConfig = localStorage.getItem('firebase_config_cache');
-            if (savedConfig) {
-                document.getElementById('firebaseConfigInput').value = savedConfig;
-                const tryAutoConnect = (retries = 10) => {
-                    if (typeof window.initFirebase === 'function') {
-                        setupFirebase(true);
-                    } else if (retries > 0) {
-                        setTimeout(() => tryAutoConnect(retries - 1), 150);
-                    }
-                };
-                tryAutoConnect();
-            }
-
-            // 綁定全域貼上事件，確保開啟彈窗時按 Ctrl+V 都能擷取圖片
-            window.addEventListener('paste', handlePasteEvent);
-
-            // 綁定 modal 圖片檔案切換與剪貼簿貼上觸發預覽
-            const fileInput = document.getElementById('modalImageFileInput');
-            if (fileInput) {
-                fileInput.addEventListener('change', handleFileSelect);
-            }
-
-            const pasteArea = document.getElementById('modalPasteArea');
-            if (pasteArea) {
-                pasteArea.addEventListener('click', function() {
-                    this.focus();
-                });
-            }
-
-            // 按下 Esc 鍵關閉所有 Modal
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    closeEditModal();
-                    closeImageModal();
-                    closeViewImageModal();
-                    closeSettingsModal();
-                    closeRenameModal();
+            if (isSearchSectionCollapsed) {
+                bodyEl.classList.add('hidden');
+                if (collapsedBarEl) {
+                    collapsedBarEl.classList.remove('hidden');
+                    collapsedBarEl.classList.add('flex');
                 }
-            });
-        });
-
-        // ===== 設定 Modal 控制邏輯 =====
-        function openSettingsModal() {
-            const modal = document.getElementById('settingsModal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            }
-        }
-
-        function closeSettingsModal() {
-            const modal = document.getElementById('settingsModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            }
-        }
-
-        // ===== 主題切換邏輯 =====
-        function initTheme() {
-            const savedTheme = localStorage.getItem('theme');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-                document.documentElement.classList.add('dark');
             } else {
-                document.documentElement.classList.remove('dark');
-            }
-            updateThemeUI();
-        }
-
-        function toggleDarkMode() {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            updateThemeUI();
-            showToast(isDark ? '已切換至深色模式' : '已切換至淺色模式', 'info');
-        }
-
-        function updateThemeUI() {
-            const isDark = document.documentElement.classList.contains('dark');
-            const icon = document.getElementById('themeToggleIcon');
-            const text = document.getElementById('themeToggleText');
-            if (icon && text) {
-                if (isDark) {
-                    icon.className = 'fa-solid fa-sun text-amber-300';
-                    text.innerText = '淺色模式';
-                } else {
-                    icon.className = 'fa-solid fa-moon text-sky-300';
-                    text.innerText = '深色模式';
+                bodyEl.classList.remove('hidden');
+                if (collapsedBarEl) {
+                    collapsedBarEl.classList.add('hidden');
+                    collapsedBarEl.classList.remove('flex');
                 }
             }
         }
 
-        // UI 友善提示
-        function showToast(msg, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            if (!container) return;
-
-            const toast = document.createElement('div');
-            toast.className = `pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border text-xs font-semibold animate-toast backdrop-blur-md ${
-                type === 'error' ? 'bg-rose-900/90 border-rose-700 text-rose-100' :
-                type === 'success' ? 'bg-emerald-900/90 border-emerald-700 text-emerald-100' :
-                'bg-slate-900/90 dark:bg-slate-800/95 border-slate-700 text-slate-100'
-            }`;
-
-            const icon = type === 'error' ? 'fa-circle-xmark' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
-            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${msg.replace(/\n/g, '<br>')}</span>`;
-            
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        function showConfirm(title, message, onOk) {
-            const modal = document.getElementById('customConfirmModal');
-            document.getElementById('confirmTitle').innerText = title;
-            document.getElementById('confirmMessage').innerText = message;
-            
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-
-            const okBtn = document.getElementById('confirmOkBtn');
-            const cancelBtn = document.getElementById('confirmCancelBtn');
-
-            const cleanup = () => {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-                okBtn.onclick = null;
-                cancelBtn.onclick = null;
-            };
-
-            okBtn.onclick = () => {
-                cleanup();
-                if (onOk) onOk();
-            };
-            cancelBtn.onclick = () => cleanup();
-        }
-
-        // 儲存與重新整理
-        function saveAndRefresh() {
-            localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
-            if (currentSystemMode === 'overview') {
-                document.getElementById('questionCountBadge').innerText = `${window.questionBank.length} 題`;
-            } else {
-                document.getElementById('questionCountBadge').innerText = `測驗庫 ${window.quizBank.length} 題`;
-            }
-            renderCategories();
-            performSearch();
-        }
-
-        // ===== 系統模式切換（題庫總覽 <-> 測驗模式） =====
-        function switchSystemMode(mode) {
-            currentSystemMode = mode;
-            const overviewMain = document.getElementById('overviewMainView');
-            const quizMain = document.getElementById('quizMainView');
-            const overviewBtn = document.getElementById('modeOverviewBtn');
-            const quizBtn = document.getElementById('modeQuizBtn');
-            const badge = document.getElementById('questionCountBadge');
-
-            if (mode === 'quiz') {
-                overviewMain.classList.add('hidden');
-                quizMain.classList.remove('hidden');
-                quizMain.classList.add('grid');
-
-                overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
-                quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-indigo-400 text-slate-950 shadow-sm transition flex items-center gap-1.5';
-                badge.innerText = `測驗庫 ${window.quizBank.length} 題`;
-                refreshQuizModeUI();
-            } else {
-                quizMain.classList.add('hidden');
-                quizMain.classList.remove('grid');
-                overviewMain.classList.remove('hidden');
-
-                overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5';
-                quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
-                badge.innerText = `${window.questionBank.length} 題`;
-            }
+        function toggleSearchSection() {
+            isSearchSectionCollapsed = !isSearchSectionCollapsed;
+            applySearchSectionCollapseUI();
             persistUiState();
-        }
-
-        // ===== 獨立測驗題庫解析器（支援單選、複選選項 A/B/C/D 與 [__1__] 多空格填空） =====
-        function handleQuizTxtFileUpload(event) {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const textarea = document.getElementById('quizImportTextarea');
-                if (textarea) {
-                    textarea.value = e.target.result;
-                    const subInput = document.getElementById('quizSubCategoryNameInput');
-                    if (subInput && !subInput.value.trim()) {
-                        subInput.value = file.name.replace(/\.txt$/i, '');
-                    }
-                    showToast(`已載入檔案「${file.name}」，請確認類別後點擊「匯入測驗題庫」`, 'info');
-                }
-                event.target.value = '';
-            };
-            reader.readAsText(file, 'UTF-8');
-        }
-
-        function parseAndImportQuizBank() {
-            const rawText = document.getElementById('quizImportTextarea').value.trim();
-            const category = document.getElementById('quizCategoryNameInput').value.trim() || '未分類';
-            const subcategory = document.getElementById('quizSubCategoryNameInput').value.trim() || '';
-
-            if (!rawText) {
-                showToast('請先貼上測驗題目或載入 .txt 檔案！', 'error');
-                return;
-            }
-
-            let processed = rawText
-                .replace(/\r\n/g, '\n')
-                .replace(/題目[：:]/g, '\n[QZ_QUESTION]\n')
-                .replace(/選項[：:]/g, '\n[QZ_OPTIONS]\n')
-                .replace(/你的答案[：:]/g, '\n[QZ_YOUR_ANS]\n')
-                .replace(/正確答案[：:]/g, '\n[QZ_CORRECT_ANS]\n')
-                .replace(/得分[：:]/g, '\n[QZ_SCORE]\n');
-
-            const lines = processed.split('\n');
-            const parsedList = [];
-            let cur = null;
-            let mode = 'NONE';
-
-            function finalizeQuizItem() {
-                if (!cur) return;
-                let qText = cur.questionLines.join('\n').trim();
-                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/, '').trim();
-
-                const options = [];
-                cur.optionLines.forEach(optLine => {
-                    const cleanedOpt = optLine.replace(/^[A-Za-z0-9]+[\.、\)\:]\s*/, '').trim();
-                    if (cleanedOpt) options.push(cleanedOpt);
-                });
-
-                const answers = [];
-                cur.answerLines.forEach(ansLine => {
-                    const cleanedAns = ansLine.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim();
-                    if (cleanedAns) answers.push(cleanedAns);
-                });
-
-                if (qText && answers.length > 0) {
-                    const hasFillBlank = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(qText);
-                    let qType = 'SINGLE';
-                    if (hasFillBlank) {
-                        qType = 'FILL';
-                    } else if (answers.length > 1) {
-                        qType = 'MULTI';
-                    } else {
-                        qType = 'SINGLE';
-                    }
-
-                    if (qType !== 'FILL' && options.length === 0) {
-                        answers.forEach(a => {
-                            if (!options.includes(a)) options.push(a);
-                        });
-                    }
-
-                    parsedList.push({
-                        id: 'qz_' + Date.now() + '_' + Math.floor(Math.random() * 100000) + '_' + parsedList.length,
-                        category,
-                        subcategory,
-                        qType,
-                        question: qText,
-                        options,
-                        answers
-                    });
-                }
-                cur = null;
-                mode = 'NONE';
-            }
-
-            function startNewQuizItem() {
-                finalizeQuizItem();
-                cur = { questionLines: [], optionLines: [], answerLines: [] };
-                mode = 'QUESTION';
-            }
-
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-
-                if (line === '[QZ_QUESTION]') {
-                    startNewQuizItem();
-                    continue;
-                }
-                if (line === '[QZ_OPTIONS]') {
-                    if (!cur) startNewQuizItem();
-                    mode = 'OPTIONS';
-                    continue;
-                }
-                if (line === '[QZ_YOUR_ANS]') {
-                    mode = 'YOUR_ANS';
-                    continue;
-                }
-                if (line === '[QZ_CORRECT_ANS]') {
-                    if (!cur) startNewQuizItem();
-                    mode = 'CORRECT_ANS';
-                    continue;
-                }
-                if (line === '[QZ_SCORE]') {
-                    mode = 'SCORE';
-                    continue;
-                }
-
-                if (mode === 'SCORE') {
-                    const scoreMatch = line.match(/^(\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?|\d+)(.*)/);
-                    if (scoreMatch) {
-                        const rest = (scoreMatch[4] || '').trim();
-                        if (rest) {
-                            startNewQuizItem();
-                            cur.questionLines.push(rest);
-                        } else {
-                            mode = 'AFTER_SCORE';
-                        }
-                    } else {
-                        startNewQuizItem();
-                        cur.questionLines.push(line);
-                    }
-                    continue;
-                }
-
-                if (mode === 'AFTER_SCORE' || mode === 'NONE') {
-                    startNewQuizItem();
-                    cur.questionLines.push(line);
-                    continue;
-                }
-
-                if (mode === 'QUESTION') {
-                    if (/^[A-H][\.、\)]\s+/.test(line) && cur.questionLines.length > 0) {
-                        mode = 'OPTIONS';
-                        cur.optionLines.push(line);
-                    } else {
-                        cur.questionLines.push(line);
-                    }
-                    continue;
-                }
-
-                if (mode === 'OPTIONS') {
-                    cur.optionLines.push(line);
-                    continue;
-                }
-
-                if (mode === 'YOUR_ANS') {
-                    continue;
-                }
-
-                if (mode === 'CORRECT_ANS') {
-                    cur.answerLines.push(line);
-                    continue;
-                }
-            }
-
-            finalizeQuizItem();
-
-            if (parsedList.length === 0) {
-                showToast('解析失敗：未偵測到有效測驗題目與正確答案。', 'error');
-                return;
-            }
-
-            let addedCount = 0;
-            let skippedCount = 0;
-
-            parsedList.forEach(newItem => {
-                const isDup = window.quizBank.some(ex =>
-                    (ex.category || '').trim().toLowerCase() === newItem.category.trim().toLowerCase() &&
-                    (ex.subcategory || '').trim().toLowerCase() === newItem.subcategory.trim().toLowerCase() &&
-                    (ex.question || '').trim().toLowerCase() === newItem.question.trim().toLowerCase() &&
-                    (ex.answers || []).join('|||').toLowerCase() === newItem.answers.join('|||').toLowerCase()
-                );
-                if (isDup) {
-                    skippedCount++;
-                } else {
-                    window.quizBank.push(newItem);
-                    addedCount++;
-                }
-            });
-
-            document.getElementById('quizImportTextarea').value = '';
-            saveQuizBankAndRefresh();
-
-            if (skippedCount > 0) {
-                showToast(`測驗題庫已匯入 ${addedCount} 題（略過 ${skippedCount} 題重複）`, 'success');
-            } else {
-                showToast(`成功匯入 ${addedCount} 題至獨立測驗題庫！`, 'success');
-            }
-        }
-
-        function saveQuizBankAndRefresh() {
-            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
-            if (currentSystemMode === 'quiz') {
-                document.getElementById('questionCountBadge').innerText = `測驗庫 ${window.quizBank.length} 題`;
-            }
-            refreshQuizModeUI();
-        }
-
-        function clearQuizBank() {
-            showConfirm(
-                '清空測驗題庫',
-                '確定要清空所有「獨立測驗題庫」嗎？（不會影響題庫總覽的資料）',
-                () => {
-                    window.quizBank = [];
-                    quizSelectedCategory = 'ALL';
-                    quizSelectedSubCategory = 'ALL';
-                    activeQuizSession = null;
-                    persistUiState();
-                    saveQuizBankAndRefresh();
-                    showToast('已清空獨立測驗題庫！', 'info');
-                }
-            );
-        }
-
-        function deleteQuizCategory(cat) {
-            showConfirm(
-                '刪除測驗母類別',
-                `確定要刪除測驗題庫中的「${cat}」母類別及其所有題目嗎？`,
-                () => {
-                    window.quizBank = window.quizBank.filter(q => q.category !== cat);
-                    if (quizSelectedCategory === cat) {
-                        quizSelectedCategory = 'ALL';
-                        quizSelectedSubCategory = 'ALL';
-                    }
-                    persistUiState();
-                    saveQuizBankAndRefresh();
-                    showToast(`已刪除測驗母類別「${cat}」`, 'info');
-                }
-            );
-        }
-
-        function deleteQuizSubCategory(parentCat, subCat) {
-            showConfirm(
-                '刪除測驗單元',
-                `確定要刪除測驗題庫中的「${parentCat} ➔ ${subCat}」單元及其所有題目嗎？`,
-                () => {
-                    window.quizBank = window.quizBank.filter(q => !(q.category === parentCat && q.subcategory === subCat));
-                    if (quizSelectedSubCategory === subCat) {
-                        quizSelectedSubCategory = 'ALL';
-                    }
-                    persistUiState();
-                    saveQuizBankAndRefresh();
-                    showToast(`已刪除測驗單元「${subCat}」`, 'info');
-                }
-            );
-        }
-
-        function selectQuizCategory(cat) {
-            quizSelectedCategory = cat;
-            quizSelectedSubCategory = 'ALL';
-            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
-                activeQuizSession = null;
-            }
-            persistUiState();
-            refreshQuizModeUI();
-        }
-
-        function selectQuizSubCategory(sub) {
-            quizSelectedSubCategory = sub;
-            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
-                activeQuizSession = null;
-            }
-            persistUiState();
-            refreshQuizModeUI();
-        }
-
-        function selectQuizSubCategory(sub) {
-            quizSelectedSubCategory = sub;
-            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
-                activeQuizSession = null;
-            }
-            refreshQuizModeUI();
-        }
-
-        function updateQuizDatalists() {
-            const cats = [...new Set(window.quizBank.map(q => q.category).filter(Boolean))].sort(naturalSortCompare);
-            const catListEl = document.getElementById('quizCategoriesDatalist');
-            if (catListEl) {
-                catListEl.innerHTML = cats.map(c => `<option value="${c}">`).join('');
-            }
-            updateQuizSubCategoryDatalist();
-        }
-
-        function updateQuizSubCategoryDatalist() {
-            const subListEl = document.getElementById('quizSubCategoriesDatalist');
-            if (!subListEl) return;
-            const curParent = document.getElementById('quizCategoryNameInput').value.trim();
-            const subs = [...new Set(
-                window.quizBank
-                    .filter(q => (!curParent || q.category === curParent) && q.subcategory)
-                    .map(q => q.subcategory)
-            )].sort(naturalSortCompare);
-            subListEl.innerHTML = subs.map(s => `<option value="${s}">`).join('');
-        }
-
-        function getFilteredQuizPool() {
-            return window.quizBank.filter(q => {
-                const matchParent = quizSelectedCategory === 'ALL' || q.category === quizSelectedCategory;
-                const matchSub = quizSelectedSubCategory === 'ALL' || q.subcategory === quizSelectedSubCategory;
-                return matchParent && matchSub;
-            });
-        }
-
-        function refreshQuizModeUI() {
-            updateQuizDatalists();
-            const badgeEl = document.getElementById('quizBankTotalBadge');
-            if (badgeEl) badgeEl.innerText = `測驗庫 ${window.quizBank.length} 題`;
-
-            renderQuizCategories();
-            renderQuizHistorySidebar();
-            renderQuizWorkspace();
-        }
-
-        function renderQuizCategories() {
-            const catContainer = document.getElementById('quizCategoryList');
-            const subSection = document.getElementById('quizSubCategorySection');
-            const subContainer = document.getElementById('quizSubCategoryList');
-            if (!catContainer) return;
-
-            const categories = [...new Set(window.quizBank.map(q => q.category).filter(Boolean))].sort(naturalSortCompare);
-
-            let html = `
-                <button onclick="selectQuizCategory('ALL')" class="px-3 py-1 rounded-xl text-xs font-semibold transition-all shadow-sm ${
-                    quizSelectedCategory === 'ALL'
-                    ? 'bg-indigo-600 text-white font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
-                }">
-                    全部 (${window.quizBank.length})
-                </button>
-            `;
-
-            categories.forEach(cat => {
-                const isActive = cat === quizSelectedCategory;
-                const count = window.quizBank.filter(q => q.category === cat).length;
-                const safeCat = encodeURIComponent(cat);
-                html += `
-                    <div class="inline-flex items-center rounded-xl text-xs transition-all ${
-                        isActive ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700'
-                    }">
-                        <button onclick="selectQuizCategory(decodeURIComponent('${safeCat}'))" class="px-2.5 py-1 font-semibold">
-                            ${cat} (${count})
-                        </button>
-                        <button onclick="deleteQuizCategory(decodeURIComponent('${safeCat}'))" title="刪除此測驗母類別" class="pr-2 pl-0.5 py-1 text-slate-400 hover:text-rose-400 font-bold">×</button>
-                    </div>
-                `;
-            });
-            catContainer.innerHTML = html;
-
-            if (quizSelectedCategory === 'ALL') {
-                subSection.classList.add('hidden');
-            } else {
-                const subs = [...new Set(
-                    window.quizBank
-                        .filter(q => q.category === quizSelectedCategory && q.subcategory)
-                        .map(q => q.subcategory)
-                )].sort(naturalSortCompare);
-
-                if (subs.length > 0) {
-                    subSection.classList.remove('hidden');
-                    const safeParent = encodeURIComponent(quizSelectedCategory);
-                    let subHtml = `
-                        <button onclick="selectQuizSubCategory('ALL')" class="px-2.5 py-0.5 rounded-lg text-xs font-semibold transition ${
-                            quizSelectedSubCategory === 'ALL'
-                            ? 'bg-indigo-800 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
-                        }">
-                            全部單元
-                        </button>
-                    `;
-                    subs.forEach(sub => {
-                        const isSubActive = sub === quizSelectedSubCategory;
-                        const subCount = window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory === sub).length;
-                        const safeSub = encodeURIComponent(sub);
-                        subHtml += `
-                            <div class="inline-flex items-center rounded-lg text-xs transition ${
-                                isSubActive ? 'bg-indigo-800 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                            }">
-                                <button onclick="selectQuizSubCategory(decodeURIComponent('${safeSub}'))" class="px-2 py-0.5 font-semibold">
-                                    ${sub} (${subCount})
-                                </button>
-                                <button onclick="deleteQuizSubCategory(decodeURIComponent('${safeParent}'), decodeURIComponent('${safeSub}'))" title="刪除此測驗單元" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 hover:text-rose-300 font-bold">×</button>
-                            </div>
-                        `;
-                    });
-                    subContainer.innerHTML = subHtml;
-                } else {
-                    subSection.classList.add('hidden');
-                }
-            }
         }
 
         function renderQuizWorkspace() {
@@ -2667,6 +2111,119 @@ Win32 API
             subList.innerHTML = subcategories.map(s => `<option value="${s}">`).join('');
         }
 
+        // 正規化題目文字以便進行 HTML 考卷與題庫比對
+        function normalizeQuestionForHtmlMatch(str) {
+            return String(str || '')
+                .replace(/\[\s*(?:__)?\d+(?:__)?\s*\]/g, ' ')
+                .replace(/_{2,}/g, ' ')
+                .replace(/^(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?\s*/i, '')
+                .replace(/^(?:\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/i, '')
+                .replace(/[\(（]\s*(?:請用小寫英文回答|Please\s+answer)[^\)）]*[\)）]/gi, '')
+                .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]+/g, '')
+                .toLowerCase();
+        }
+
+        // 解析上傳的 HTML 考卷並擷取所有題目
+        function parseQuestionsFromHtmlContent(htmlContent) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+
+            // 移除隱藏誘捕節點 (honeypot) 避免干擾
+            const honeypot = doc.getElementById('sys-v-node');
+            if (honeypot) honeypot.remove();
+
+            const blocks = doc.querySelectorAll('.question-block');
+            const extracted = [];
+
+            blocks.forEach((block, idx) => {
+                if (block.id === 'sys-v-node' || block.getAttribute('aria-hidden') === 'true') return;
+
+                // 優先抓 .options 內的 .question-text (如填空題題幹放在 .options 內)，若無則抓外層 .question-text
+                const innerQ = block.querySelector('.options .question-text');
+                const outerQ = block.querySelector(':scope > .question-text') || block.querySelector('.question-text');
+                const targetEl = innerQ || outerQ;
+                if (!targetEl) return;
+
+                const clone = targetEl.cloneNode(true);
+                clone.querySelectorAll('input.text-answer, input[type="text"]').forEach(inp => {
+                    inp.replaceWith(' [__1__] ');
+                });
+
+                let rawText = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+                rawText = rawText.replace(/^(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?\s*/i, '').trim();
+                if (!rawText) return;
+
+                const norm = normalizeQuestionForHtmlMatch(rawText);
+                if (!norm) return;
+
+                extracted.push({
+                    index: idx + 1,
+                    raw: rawText,
+                    norm
+                });
+            });
+
+            return extracted;
+        }
+
+        function handleHtmlFilterFileUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result || '';
+                    const parsed = parseQuestionsFromHtmlContent(content);
+                    if (parsed.length === 0) {
+                        showToast('未在 HTML 檔案中偵測到題目區塊 (.question-block)', 'error');
+                        return;
+                    }
+                    htmlFilterQuestions = parsed;
+                    htmlFilterFileName = file.name;
+                    updateHtmlFilterUI();
+                    performSearch();
+                    showToast(`已讀取「${file.name}」，共解析出 ${parsed.length} 道考卷題目進行篩選！`, 'success');
+                } catch (err) {
+                    showToast('解析 HTML 檔案失敗：' + err.message, 'error');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearHtmlFilter() {
+            htmlFilterQuestions = [];
+            htmlFilterFileName = '';
+            const fileInput = document.getElementById('htmlFilterFileInput');
+            if (fileInput) fileInput.value = '';
+            updateHtmlFilterUI();
+            performSearch();
+            showToast('已清除 HTML 題目篩選', 'info');
+        }
+
+        function updateHtmlFilterUI() {
+            const statusEl = document.getElementById('htmlFilterStatusBadge');
+            const clearBtn = document.getElementById('clearHtmlFilterBtn');
+            if (!statusEl || !clearBtn) return;
+
+            if (htmlFilterQuestions.length > 0) {
+                statusEl.innerHTML = `<i class="fa-solid fa-filter mr-1"></i>${escapeHtml(htmlFilterFileName)} (${htmlFilterQuestions.length}題)`;
+                statusEl.title = `已套用「${htmlFilterFileName}」（考卷共 ${htmlFilterQuestions.length} 題）`;
+                statusEl.classList.remove('hidden');
+                statusEl.classList.add('inline-flex', 'items-center');
+                clearBtn.classList.remove('hidden');
+                clearBtn.classList.add('inline-flex');
+            } else {
+                statusEl.textContent = '';
+                statusEl.classList.add('hidden');
+                statusEl.classList.remove('inline-flex', 'items-center');
+                clearBtn.classList.add('hidden');
+                clearBtn.classList.remove('inline-flex');
+            }
+        }
+
         // 搜尋比對與渲染卡片
         function performSearch() {
             persistUiState();
@@ -2705,8 +2262,37 @@ Win32 API
                     matchQType = detectQuestionCategoryType(q) === selectedQuestionType;
                 }
 
-                return matchParent && matchSub && matchLang && matchQType;
+                let matchHtml = true;
+                if (htmlFilterQuestions.length > 0) {
+                    const bankNorm = normalizeQuestionForHtmlMatch(q.question);
+                    if (!bankNorm) {
+                        matchHtml = false;
+                    } else {
+                        matchHtml = htmlFilterQuestions.some(hq => {
+                            if (hq.norm === bankNorm) return true;
+                            if (hq.norm.length >= 10 && bankNorm.length >= 10) {
+                                return hq.norm.includes(bankNorm) || bankNorm.includes(hq.norm);
+                            }
+                            return false;
+                        });
+                    }
+                }
+
+                return matchParent && matchSub && matchLang && matchQType && matchHtml;
             });
+
+            // 若已套用 HTML 篩選，依考卷內題目出現順序排列結果
+            if (htmlFilterQuestions.length > 0) {
+                const getHtmlOrder = (q) => {
+                    const bankNorm = normalizeQuestionForHtmlMatch(q.question);
+                    const idx = htmlFilterQuestions.findIndex(hq =>
+                        hq.norm === bankNorm ||
+                        (hq.norm.length >= 10 && bankNorm.length >= 10 && (hq.norm.includes(bankNorm) || bankNorm.includes(hq.norm)))
+                    );
+                    return idx === -1 ? 99999 : idx;
+                };
+                list.sort((a, b) => getHtmlOrder(a) - getHtmlOrder(b));
+            }
 
             if (query !== '') {
                 list = list.filter(q => {
@@ -2721,7 +2307,10 @@ Win32 API
                 });
             }
 
-            document.getElementById('searchResultCount').innerText = `共 ${list.length} 題`;
+            const countText = `共 ${list.length} 題`;
+            document.getElementById('searchResultCount').innerText = countText;
+            const collapsedCountEl = document.getElementById('searchResultCountCollapsed');
+            if (collapsedCountEl) collapsedCountEl.innerText = countText;
 
             if (list.length === 0) {
                 container.innerHTML = `
@@ -3532,6 +3121,336 @@ Win32 API
                 setCloudButtonsLoading('pull', false);
             }
         }
+
+        // ===== 系統模式切換、設定視窗、通知與初始化 =====
+        function switchSystemMode(mode) {
+            currentSystemMode = mode === 'quiz' ? 'quiz' : 'overview';
+            const overviewView = document.getElementById('overviewMainView');
+            const quizView = document.getElementById('quizMainView');
+            const overviewBtn = document.getElementById('modeOverviewBtn');
+            const quizBtn = document.getElementById('modeQuizBtn');
+
+            if (currentSystemMode === 'quiz') {
+                if (overviewView) overviewView.classList.add('hidden');
+                if (quizView) {
+                    quizView.classList.remove('hidden');
+                    quizView.classList.add('grid');
+                }
+                if (quizBtn) quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5';
+                if (overviewBtn) overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
+                refreshQuizModeUI();
+            } else {
+                if (quizView) {
+                    quizView.classList.add('hidden');
+                    quizView.classList.remove('grid');
+                }
+                if (overviewView) overviewView.classList.remove('hidden');
+                if (overviewBtn) overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5';
+                if (quizBtn) quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
+            }
+            persistUiState();
+        }
+
+        function toggleDarkMode() {
+            const htmlEl = document.documentElement;
+            const isDark = htmlEl.classList.toggle('dark');
+            localStorage.setItem('theme_mode', isDark ? 'dark' : 'light');
+            updateThemeButtonUI(isDark);
+        }
+
+        function updateThemeButtonUI(isDark) {
+            const icon = document.getElementById('themeToggleIcon');
+            const text = document.getElementById('themeToggleText');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun text-amber-300' : 'fa-solid fa-moon text-sky-300';
+            if (text) text.innerText = isDark ? '淺色模式' : '深色模式';
+        }
+
+        function openSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const colorMap = {
+                success: 'bg-emerald-800/95 text-emerald-50 border-emerald-700/80 backdrop-blur-sm',
+                error: 'bg-rose-800/95 text-rose-50 border-rose-700/80 backdrop-blur-sm',
+                info: 'bg-slate-800/95 text-slate-50 border-slate-700/80 backdrop-blur-sm'
+            };
+            const iconMap = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                info: 'fa-circle-info'
+            };
+            toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 animate-toast ${colorMap[type] || colorMap.info}`;
+            toast.innerHTML = `<i class="fa-solid ${iconMap[type] || iconMap.info}"></i><span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3100);
+        }
+
+        function showConfirm(title, message, onConfirm) {
+            const modal = document.getElementById('customConfirmModal');
+            const titleEl = document.getElementById('confirmTitle');
+            const msgEl = document.getElementById('confirmMessage');
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+            if (!modal || !okBtn || !cancelBtn) return;
+
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = cleanup;
+            okBtn.onclick = () => {
+                cleanup();
+                if (typeof onConfirm === 'function') onConfirm();
+            };
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
+            const badge = document.getElementById('questionCountBadge');
+            if (badge) badge.innerText = `${window.questionBank.length} 題`;
+            if (document.getElementById('categoryList')) renderCategories();
+            performSearch();
+        }
+
+        function getFilteredQuizPool() {
+            return (window.quizBank || []).filter(q => {
+                const matchCat = quizSelectedCategory === 'ALL' || q.category === quizSelectedCategory;
+                const matchSub = quizSelectedSubCategory === 'ALL' || q.subcategory === quizSelectedSubCategory;
+                return matchCat && matchSub;
+            });
+        }
+
+        function filterQuizCategory(cat) {
+            quizSelectedCategory = cat;
+            quizSelectedSubCategory = 'ALL';
+            persistUiState();
+            refreshQuizModeUI();
+        }
+
+        function filterQuizSubCategory(sub) {
+            quizSelectedSubCategory = sub;
+            persistUiState();
+            refreshQuizModeUI();
+        }
+
+        function updateQuizSubCategoryDatalist() {
+            const subList = document.getElementById('quizSubCategoriesDatalist');
+            const catInput = document.getElementById('quizCategoryNameInput');
+            if (!subList || !catInput) return;
+            const parentCat = catInput.value.trim();
+            const subs = [...new Set((window.quizBank || [])
+                .filter(q => !parentCat || q.category === parentCat)
+                .map(q => q.subcategory)
+                .filter(Boolean))];
+            subList.innerHTML = subs.map(s => `<option value="${s}">`).join('');
+        }
+
+        function refreshQuizModeUI() {
+            const totalBadge = document.getElementById('quizBankTotalBadge');
+            if (totalBadge) totalBadge.innerText = `測驗庫 ${(window.quizBank || []).length} 題`;
+
+            const catDatalist = document.getElementById('quizCategoriesDatalist');
+            const cats = [...new Set((window.quizBank || []).map(q => q.category).filter(Boolean))];
+            if (catDatalist) catDatalist.innerHTML = cats.map(c => `<option value="${c}">`).join('');
+            updateQuizSubCategoryDatalist();
+
+            const catListEl = document.getElementById('quizCategoryList');
+            if (catListEl) {
+                let html = `<button onclick="filterQuizCategory('ALL')" class="px-3 py-1 rounded-xl text-xs font-semibold transition ${quizSelectedCategory === 'ALL' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">全部 (${(window.quizBank || []).length})</button>`;
+                cats.forEach(c => {
+                    const cnt = window.quizBank.filter(q => q.category === c).length;
+                    const active = c === quizSelectedCategory;
+                    const safeC = encodeURIComponent(c);
+                    html += `<button onclick="filterQuizCategory(decodeURIComponent('${safeC}'))" class="px-2.5 py-1 rounded-xl text-xs font-semibold transition ${active ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">${escapeHtml(c)} (${cnt})</button>`;
+                });
+                catListEl.innerHTML = html;
+            }
+
+            const subSec = document.getElementById('quizSubCategorySection');
+            const subListEl = document.getElementById('quizSubCategoryList');
+            if (subSec && subListEl) {
+                if (quizSelectedCategory === 'ALL') {
+                    subSec.classList.add('hidden');
+                } else {
+                    const subs = [...new Set(window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory).map(q => q.subcategory))];
+                    if (subs.length > 0) {
+                        subSec.classList.remove('hidden');
+                        let sHtml = `<button onclick="filterQuizSubCategory('ALL')" class="px-2.5 py-0.5 rounded-lg text-xs font-semibold transition ${quizSelectedSubCategory === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">全部單元</button>`;
+                        subs.forEach(s => {
+                            const sCnt = window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory === s).length;
+                            const sActive = s === quizSelectedSubCategory;
+                            const safeS = encodeURIComponent(s);
+                            sHtml += `<button onclick="filterQuizSubCategory(decodeURIComponent('${safeS}'))" class="px-2 py-0.5 rounded-lg text-xs font-semibold transition ${sActive ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">${escapeHtml(s)} (${sCnt})</button>`;
+                        });
+                        subListEl.innerHTML = sHtml;
+                    } else {
+                        subSec.classList.add('hidden');
+                    }
+                }
+            }
+
+            renderQuizHistorySidebar();
+            renderQuizWorkspace();
+        }
+
+        function handleQuizTxtFileUpload(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const ta = document.getElementById('quizImportTextarea');
+                if (ta) ta.value = e.target.result || '';
+                showToast(`已載入檔案「${file.name}」`, 'info');
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAndImportQuizBank() {
+            const ta = document.getElementById('quizImportTextarea');
+            const raw = ta ? ta.value.trim() : '';
+            const category = (document.getElementById('quizCategoryNameInput')?.value || '').trim() || '未分類';
+            const subcategory = (document.getElementById('quizSubCategoryNameInput')?.value || '').trim() || '';
+
+            if (!raw) {
+                showToast('請先貼上或載入測驗題庫內容！', 'error');
+                return;
+            }
+
+            const blocks = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+            const imported = [];
+
+            blocks.forEach((block, bIdx) => {
+                const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+                let qLines = [];
+                let options = [];
+                let answers = [];
+                let mode = 'Q';
+
+                lines.forEach(line => {
+                    if (/^(題目[：:])/i.test(line)) {
+                        mode = 'Q';
+                        const rest = line.replace(/^題目[：:]\s*/i, '').trim();
+                        if (rest) qLines.push(rest);
+                    } else if (/^(選項[：:])/i.test(line)) {
+                        mode = 'OPT';
+                        const rest = line.replace(/^選項[：:]\s*/i, '').trim();
+                        if (rest) options.push(rest);
+                    } else if (/^(正確答案[：:]|答案[：:]|答[：:])/i.test(line)) {
+                        mode = 'ANS';
+                        const rest = line.replace(/^(正確答案[：:]|答案[：:]|答[：:])\s*/i, '').trim();
+                        if (rest) answers.push(rest);
+                    } else if (/^[A-Ha-h][\.、\)]\s+/.test(line) && mode !== 'ANS') {
+                        mode = 'OPT';
+                        options.push(line.replace(/^[A-Ha-h][\.、\)]\s+/, '').trim());
+                    } else {
+                        if (mode === 'Q') qLines.push(line);
+                        else if (mode === 'OPT') options.push(line.replace(/^[A-Ha-h][\.、\)]\s+/, '').trim());
+                        else if (mode === 'ANS') answers.push(line);
+                    }
+                });
+
+                let qText = qLines.join('\n').replace(/^(?:\d+[\.、\)]|[\(（]\d+[\)）]|第\d+題[：:]?)\s*/, '').trim();
+                if (!qText) return;
+
+                const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(qText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(qText) || options.length === 0;
+                const qType = isFill ? 'FILL' : (answers.length > 1 ? 'MULTI' : 'SINGLE');
+
+                imported.push({
+                    id: 'qz_' + Date.now() + '_' + bIdx + '_' + Math.floor(Math.random() * 10000),
+                    category,
+                    subcategory,
+                    qType,
+                    question: qText,
+                    options,
+                    answers: answers.length > 0 ? answers : ['(未提供答案)']
+                });
+            });
+
+            if (imported.length === 0) {
+                showToast('未解析出有效題目，請檢查格式！', 'error');
+                return;
+            }
+
+            window.quizBank = [...(window.quizBank || []), ...imported];
+            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+            if (ta) ta.value = '';
+            refreshQuizModeUI();
+            showToast(`成功匯入 ${imported.length} 題至測驗題庫！`, 'success');
+        }
+
+        function clearQuizBank() {
+            if (!window.quizBank || window.quizBank.length === 0) return;
+            showConfirm(
+                '清空測驗題庫',
+                '確定要清空所有測驗模式題庫嗎？此操作無法復原。',
+                () => {
+                    window.quizBank = [];
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    quizSelectedCategory = 'ALL';
+                    quizSelectedSubCategory = 'ALL';
+                    persistUiState();
+                    refreshQuizModeUI();
+                    showToast('已清空測驗題庫', 'info');
+                }
+            );
+        }
+
+        // 頁面載入初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme_mode');
+            const isDark = savedTheme === 'dark';
+            document.documentElement.classList.toggle('dark', isDark);
+            updateThemeButtonUI(isDark);
+
+            const cachedConfig = localStorage.getItem('firebase_config_cache');
+            if (cachedConfig) {
+                const cfgInput = document.getElementById('firebaseConfigInput');
+                if (cfgInput) cfgInput.value = cachedConfig;
+                setupFirebase(true);
+            }
+
+            const searchInputEl = document.getElementById('searchInput');
+            if (searchInputEl && savedUiState.searchQuery) {
+                searchInputEl.value = savedUiState.searchQuery;
+            }
+            if (savedUiState.searchMode) {
+                const radio = document.querySelector(`input[name="searchMode"][value="${savedUiState.searchMode}"]`);
+                if (radio) radio.checked = true;
+            }
+
+            document.addEventListener('paste', handlePasteEvent);
+            const fileInput = document.getElementById('modalImageFileInput');
+            if (fileInput) fileInput.addEventListener('change', handleFileSelect);
+
+            loadPracticeNotes();
+            syncFilterButtonsUI();
+            saveAndRefresh();
+            switchSystemMode(currentSystemMode);
+        });
     </script>
 </body>
 </html>
