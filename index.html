@@ -848,6 +848,9 @@
         let quizPrefCount = savedUiState.quizPrefCount || 20;
         let quizPrefType = savedUiState.quizPrefType || 'ALL';
         let quizPrefOrder = savedUiState.quizPrefOrder || 'SHUFFLE';
+        let quizPrefRangeStart = savedUiState.quizPrefRangeStart || 1;
+        let quizPrefRangeEnd = savedUiState.quizPrefRangeEnd || 0; // 0 = 到最後一題
+        let quizPrefRangeShuffle = Boolean(savedUiState.quizPrefRangeShuffle);
 
         function persistUiState() {
             const searchInputEl = document.getElementById('searchInput');
@@ -866,6 +869,9 @@
                 quizPrefCount,
                 quizPrefType,
                 quizPrefOrder,
+                quizPrefRangeStart,
+                quizPrefRangeEnd,
+                quizPrefRangeShuffle,
                 activeQuizSession
             };
             try {
@@ -1014,8 +1020,23 @@
                             <select id="quizOrderSelect" onchange="saveQuizSetupPreferences()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
                                 <option value="SHUFFLE" ${quizPrefOrder === 'SHUFFLE' ? 'selected' : ''}>隨機打亂題目與選項</option>
                                 <option value="SEQUENTIAL" ${quizPrefOrder === 'SEQUENTIAL' ? 'selected' : ''}>依題庫原順序出題</option>
+                                <option value="CUSTOM_RANGE" ${quizPrefOrder === 'CUSTOM_RANGE' ? 'selected' : ''}>自訂題號範圍出題</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- 自訂題號範圍 (選擇「自訂題號範圍出題」時顯示；題號依題型過濾後的清單) -->
+                    ${(() => { window.__rangePoolLen = getQuizTypeFilteredPool(quizPrefType).length; return ''; })()}
+                    <div id="quizRangeRow" class="${quizPrefOrder === 'CUSTOM_RANGE' ? 'flex' : 'hidden'} flex-wrap items-center gap-2.5 p-3.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 text-xs">
+                        <span class="font-semibold text-indigo-700 dark:text-indigo-300"><i class="fa-solid fa-arrows-left-right-to-line mr-1"></i>出題範圍：第</span>
+                        <input type="number" id="quizRangeStartInput" oninput="saveQuizSetupPreferences()" min="1" max="${Math.max(1, window.__rangePoolLen)}" value="${Math.min(Math.max(1, quizPrefRangeStart), Math.max(1, window.__rangePoolLen))}" class="w-16 text-center px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-extrabold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                        <span class="font-semibold text-indigo-700 dark:text-indigo-300">題 至 第</span>
+                        <input type="number" id="quizRangeEndInput" oninput="saveQuizSetupPreferences()" min="1" max="${Math.max(1, window.__rangePoolLen)}" value="${quizPrefRangeEnd > 0 ? Math.min(quizPrefRangeEnd, Math.max(1, window.__rangePoolLen)) : Math.max(1, window.__rangePoolLen)}" class="w-16 text-center px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-extrabold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                        <span class="font-semibold text-indigo-700 dark:text-indigo-300">題</span>
+                        <label class="flex items-center gap-1.5 ml-1 cursor-pointer font-semibold text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="quizRangeShuffleInput" onchange="saveQuizSetupPreferences()" ${quizPrefRangeShuffle ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-400"> 範圍內打亂順序
+                        </label>
+                        <span id="quizRangeHint" class="w-full text-[11px] text-slate-500 dark:text-slate-400">${getQuizRangeHintText(quizPrefType, window.__rangePoolLen)}</span>
                     </div>
 
                     <div class="pt-2">
@@ -1206,6 +1227,11 @@
             closeEditQuizQuestionModal();
         }
 
+        function getQuizRangeHintText(typeVal, count) {
+            const typeName = { ALL: '全部題型', SINGLE: '單選題', MULTI: '複選題', SINGLE_MULTI: '單/複選題', FILL: '填空題' }[typeVal] || '全部題型';
+            return `題號依「題型範圍過濾」篩選後的清單編號：目前「${typeName}」共 ${count} 題（依題庫順序，第 1 ~ ${count} 題）；自訂範圍時會出範圍內全部題目，不受「出題題數」限制。`;
+        }
+
         function saveQuizSetupPreferences() {
             const countInput = document.getElementById('quizCountInput');
             const typeSelect = document.getElementById('quizTypeFilterSelect');
@@ -1216,6 +1242,30 @@
             }
             if (typeSelect) quizPrefType = typeSelect.value;
             if (orderSelect) quizPrefOrder = orderSelect.value;
+            const rangeStartInput = document.getElementById('quizRangeStartInput');
+            const rangeEndInput = document.getElementById('quizRangeEndInput');
+            const rangeShuffleInput = document.getElementById('quizRangeShuffleInput');
+            if (rangeStartInput) {
+                const v = parseInt(rangeStartInput.value, 10);
+                if (!isNaN(v) && v >= 1) quizPrefRangeStart = v;
+            }
+            if (rangeEndInput) {
+                const v = parseInt(rangeEndInput.value, 10);
+                if (!isNaN(v) && v >= 1) quizPrefRangeEnd = v;
+            }
+            if (rangeShuffleInput) quizPrefRangeShuffle = rangeShuffleInput.checked;
+            const typedCount = getQuizTypeFilteredPool(quizPrefType).length;
+            const hintEl = document.getElementById('quizRangeHint');
+            if (hintEl) hintEl.textContent = getQuizRangeHintText(quizPrefType, typedCount);
+            [rangeStartInput, rangeEndInput].forEach(inp => { if (inp) inp.max = Math.max(1, typedCount); });
+            const rangeRow = document.getElementById('quizRangeRow');
+            if (rangeRow) {
+                rangeRow.classList.toggle('hidden', quizPrefOrder !== 'CUSTOM_RANGE');
+                rangeRow.classList.toggle('flex', quizPrefOrder === 'CUSTOM_RANGE');
+            }
+            if (countInput) {
+                countInput.closest('div').classList.toggle('opacity-50', quizPrefOrder === 'CUSTOM_RANGE');
+            }
             persistUiState();
         }
 
@@ -1251,17 +1301,36 @@
             const typeVal = document.getElementById('quizTypeFilterSelect').value;
             const orderVal = document.getElementById('quizOrderSelect').value;
 
-            if (!limit || limit < 1) {
+            const isCustomRange = orderVal === 'CUSTOM_RANGE';
+
+            if (!isCustomRange && (!limit || limit < 1)) {
                 showToast('請輸入大於 0 的有效測驗題數！', 'error');
                 if (countInput) countInput.focus();
                 return;
             }
 
-            let candidates = getFilteredQuizPool();
-            if (typeVal === 'SINGLE_MULTI') {
-                candidates = candidates.filter(q => q.qType === 'SINGLE' || q.qType === 'MULTI');
-            } else if (typeVal !== 'ALL') {
-                candidates = candidates.filter(q => q.qType === typeVal);
+            // 先依「題型範圍過濾」篩選，再依自訂題號範圍擷取 (題號以篩選後清單編號)
+            let candidates = getQuizTypeFilteredPool(typeVal);
+            let rangeLabel = '';
+            if (isCustomRange) {
+                const startVal = parseInt(document.getElementById('quizRangeStartInput')?.value, 10);
+                const endVal = parseInt(document.getElementById('quizRangeEndInput')?.value, 10);
+                if (isNaN(startVal) || isNaN(endVal) || startVal < 1 || endVal < 1) {
+                    showToast('請輸入有效的起訖題號！', 'error');
+                    return;
+                }
+                if (startVal > endVal) {
+                    showToast('起始題號不能大於結束題號！', 'error');
+                    return;
+                }
+                if (startVal > candidates.length) {
+                    showToast(`起始題號超出範圍（目前所選題型共 ${candidates.length} 題）！`, 'error');
+                    return;
+                }
+                const realEnd = Math.min(endVal, candidates.length);
+                candidates = candidates.slice(startVal - 1, realEnd);
+                const typeName = { SINGLE: '單選', MULTI: '複選', SINGLE_MULTI: '單/複選', FILL: '填空' }[typeVal];
+                rangeLabel = `（${typeName ? typeName + ' ' : ''}第 ${startVal}–${realEnd} 題）`;
             }
 
             if (candidates.length === 0) {
@@ -1269,8 +1338,13 @@
                 return;
             }
 
-            let selectedQuestions = orderVal === 'SHUFFLE' ? shuffleArray(candidates) : [...candidates];
-            selectedQuestions = selectedQuestions.slice(0, limit);
+            let selectedQuestions;
+            if (isCustomRange) {
+                selectedQuestions = (document.getElementById('quizRangeShuffleInput')?.checked) ? shuffleArray(candidates) : [...candidates];
+            } else {
+                selectedQuestions = orderVal === 'SHUFFLE' ? shuffleArray(candidates) : [...candidates];
+                selectedQuestions = selectedQuestions.slice(0, limit);
+            }
 
             const sessionItems = selectedQuestions.map(q => {
                 const rawOptions = [...(q.options || [])];
@@ -1296,9 +1370,9 @@
                 };
             });
 
-            const scopeTitle = quizSelectedCategory === 'ALL'
+            const scopeTitle = (quizSelectedCategory === 'ALL'
                 ? '全部題庫綜合測驗'
-                : (quizSelectedSubCategory === 'ALL' ? quizSelectedCategory : `${quizSelectedCategory} - ${quizSelectedSubCategory}`);
+                : (quizSelectedSubCategory === 'ALL' ? quizSelectedCategory : `${quizSelectedCategory} - ${quizSelectedSubCategory}`)) + rangeLabel;
 
             activeQuizSession = {
                 id: 'rec_' + Date.now(),
@@ -3736,6 +3810,14 @@
             );
         }
 
+        // 依「題型範圍過濾」篩選後的題目 (依題庫順序)，自訂題號範圍以此清單編號
+        function getQuizTypeFilteredPool(typeVal) {
+            const pool = getFilteredQuizPool();
+            if (typeVal === 'SINGLE_MULTI') return pool.filter(q => q.qType === 'SINGLE' || q.qType === 'MULTI');
+            if (typeVal && typeVal !== 'ALL') return pool.filter(q => q.qType === typeVal);
+            return pool;
+        }
+
         function getFilteredQuizPool() {
             return (window.quizBank || []).filter(q => {
                 const matchCat = quizSelectedCategory === 'ALL' || q.category === quizSelectedCategory;
@@ -3909,7 +3991,10 @@
 
             const finish = () => {
                 if (!cur) return;
-                const qText = cur.q.join('\n').replace(/^題目[：:]\s*/, '').replace(numberRe, '').trim();
+                const fullText = cur.q.join('\n').replace(/^題目[：:]\s*/, '').trim();
+                const strippedText = fullText.replace(numberRe, '').trim();
+                // 只有去掉題號後仍有實際文字時才去掉題號 (避免「第1題？」被刪成「？」)
+                const qText = /[一-龥a-zA-Z0-9]/.test(strippedText) ? strippedText : fullText;
                 const hasContent = cur.q.length || cur.opts.length || cur.ans.length;
                 if (qText && cur.ans.length > 0) {
                     results.push({ question: qText, options: cur.opts, answers: cur.ans });
