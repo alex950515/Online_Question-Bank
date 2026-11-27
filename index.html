@@ -735,10 +735,13 @@ Win32 API
         window.categoryOrder = JSON.parse(localStorage.getItem('category_order_v1')) || [];
         window.subCategoryOrder = JSON.parse(localStorage.getItem('sub_category_order_v1')) || {};
 
-        let selectedCategory = 'ALL';
-        let selectedSubCategory = 'ALL';
-        let selectedLanguage = 'ALL'; // 'ALL' | 'ZH' | 'EN'
-        let selectedQuestionType = 'ALL'; // 'ALL' | 'SINGLE_MULTI' | 'SINGLE' | 'MULTI' | 'FILL'
+        // 讀取上次保留的介面狀態與設定選項
+        const savedUiState = JSON.parse(localStorage.getItem('cloud_bank_ui_state_v1') || '{}');
+
+        let selectedCategory = savedUiState.selectedCategory || 'ALL';
+        let selectedSubCategory = savedUiState.selectedSubCategory || 'ALL';
+        let selectedLanguage = savedUiState.selectedLanguage || 'ALL'; // 'ALL' | 'ZH' | 'EN'
+        let selectedQuestionType = savedUiState.selectedQuestionType || 'ALL'; // 'ALL' | 'SINGLE_MULTI' | 'SINGLE' | 'MULTI' | 'FILL'
         let currentEditingQuestionId = null;
         let currentEditingTextQuestionId = null;
         let isEditingNotes = false;
@@ -747,16 +750,81 @@ Win32 API
         // ===== 獨立測驗模式狀態與資料儲存 (與題庫總覽完全隔離) =====
         window.quizBank = JSON.parse(localStorage.getItem('independent_quiz_bank_v1')) || [];
         window.quizHistory = JSON.parse(localStorage.getItem('independent_quiz_history_v1')) || [];
-        let currentSystemMode = 'overview'; // 'overview' | 'quiz'
-        let quizSelectedCategory = 'ALL';
-        let quizSelectedSubCategory = 'ALL';
-        let activeQuizSession = null; // 儲存當前正在進行或剛結束的測驗狀態
+        let currentSystemMode = savedUiState.currentSystemMode || 'overview'; // 'overview' | 'quiz'
+        let quizSelectedCategory = savedUiState.quizSelectedCategory || 'ALL';
+        let quizSelectedSubCategory = savedUiState.quizSelectedSubCategory || 'ALL';
+        let activeQuizSession = savedUiState.activeQuizSession || null; // 儲存當前正在進行或剛結束的測驗狀態
+
+        let quizPrefCount = savedUiState.quizPrefCount || 20;
+        let quizPrefType = savedUiState.quizPrefType || 'ALL';
+        let quizPrefOrder = savedUiState.quizPrefOrder || 'SHUFFLE';
+
+        function persistUiState() {
+            const searchInputEl = document.getElementById('searchInput');
+            const searchModeEl = document.querySelector('input[name="searchMode"]:checked');
+            const stateToSave = {
+                currentSystemMode,
+                selectedCategory,
+                selectedSubCategory,
+                selectedLanguage,
+                selectedQuestionType,
+                searchQuery: searchInputEl ? searchInputEl.value : (savedUiState.searchQuery || ''),
+                searchMode: searchModeEl ? searchModeEl.value : (savedUiState.searchMode || 'include'),
+                quizSelectedCategory,
+                quizSelectedSubCategory,
+                quizPrefCount,
+                quizPrefType,
+                quizPrefOrder,
+                activeQuizSession
+            };
+            try {
+                localStorage.setItem('cloud_bank_ui_state_v1', JSON.stringify(stateToSave));
+            } catch (e) {
+                console.warn('儲存介面狀態失敗:', e);
+            }
+        }
+
+        function syncFilterButtonsUI() {
+            ['ALL', 'ZH', 'EN'].forEach(code => {
+                const btn = document.getElementById(`langBtn_${code}`);
+                if (!btn) return;
+                btn.className = code === selectedLanguage
+                    ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition'
+                    : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
+            });
+            ['ALL', 'SINGLE_MULTI', 'SINGLE', 'MULTI', 'FILL'].forEach(code => {
+                const btn = document.getElementById(`qTypeBtn_${code}`);
+                if (!btn) return;
+                btn.className = code === selectedQuestionType
+                    ? 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition'
+                    : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
+            });
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             initTheme();
+
+            // 還原搜尋框文字、搜尋比對模式及篩選按鈕樣式
+            const searchInputEl = document.getElementById('searchInput');
+            if (searchInputEl && typeof savedUiState.searchQuery === 'string') {
+                searchInputEl.value = savedUiState.searchQuery;
+            }
+            if (savedUiState.searchMode) {
+                const radioEl = document.querySelector(`input[name="searchMode"][value="${savedUiState.searchMode}"]`);
+                if (radioEl) radioEl.checked = true;
+            }
+            syncFilterButtonsUI();
+
             saveAndRefresh();
             loadPracticeNotes();
             refreshQuizModeUI();
+
+            // 還原最後停留的系統模式（題庫總覽 或 測驗模式）
+            if (currentSystemMode === 'quiz') {
+                switchSystemMode('quiz');
+            } else {
+                switchSystemMode('overview');
+            }
             
             // 自動嘗試載入先前儲存的 Firebase 配置（若模組尚未完成掛載則短暫延遲重試）
             const savedConfig = localStorage.getItem('firebase_config_cache');
@@ -934,6 +1002,7 @@ Win32 API
                 quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
                 badge.innerText = `${window.questionBank.length} 題`;
             }
+            persistUiState();
         }
 
         // ===== 獨立測驗題庫解析器（支援單選、複選選項 A/B/C/D 與 [__1__] 多空格填空） =====
@@ -1160,6 +1229,7 @@ Win32 API
                     quizSelectedCategory = 'ALL';
                     quizSelectedSubCategory = 'ALL';
                     activeQuizSession = null;
+                    persistUiState();
                     saveQuizBankAndRefresh();
                     showToast('已清空獨立測驗題庫！', 'info');
                 }
@@ -1176,6 +1246,7 @@ Win32 API
                         quizSelectedCategory = 'ALL';
                         quizSelectedSubCategory = 'ALL';
                     }
+                    persistUiState();
                     saveQuizBankAndRefresh();
                     showToast(`已刪除測驗母類別「${cat}」`, 'info');
                 }
@@ -1191,6 +1262,7 @@ Win32 API
                     if (quizSelectedSubCategory === subCat) {
                         quizSelectedSubCategory = 'ALL';
                     }
+                    persistUiState();
                     saveQuizBankAndRefresh();
                     showToast(`已刪除測驗單元「${subCat}」`, 'info');
                 }
@@ -1203,6 +1275,16 @@ Win32 API
             if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
                 activeQuizSession = null;
             }
+            persistUiState();
+            refreshQuizModeUI();
+        }
+
+        function selectQuizSubCategory(sub) {
+            quizSelectedSubCategory = sub;
+            if (activeQuizSession && activeQuizSession.status !== 'in_progress') {
+                activeQuizSession = null;
+            }
+            persistUiState();
             refreshQuizModeUI();
         }
 
@@ -1392,7 +1474,7 @@ Win32 API
                                 <button type="button" onclick="adjustQuizCount(-5)" title="減少 5 題" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/70 dark:border-slate-600 flex items-center justify-center text-xs font-bold shadow-xs active:scale-95 transition shrink-0">
                                     <i class="fa-solid fa-minus text-[10px]"></i>
                                 </button>
-                                <input type="number" id="quizCountInput" min="1" max="${Math.max(1, pool.length)}" value="${pool.length > 0 ? Math.min(20, pool.length) : 20}" placeholder="20" class="w-full text-center text-sm bg-transparent text-slate-800 dark:text-slate-100 font-extrabold outline-none px-1">
+                                <input type="number" id="quizCountInput" oninput="saveQuizSetupPreferences()" min="1" max="${Math.max(1, pool.length)}" value="${pool.length > 0 ? Math.min(Math.max(1, quizPrefCount), pool.length) : Math.max(1, quizPrefCount)}" placeholder="20" class="w-full text-center text-sm bg-transparent text-slate-800 dark:text-slate-100 font-extrabold outline-none px-1">
                                 <button type="button" onclick="adjustQuizCount(5)" title="增加 5 題" class="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-300 border border-slate-200/70 dark:border-slate-600 flex items-center justify-center text-xs font-bold shadow-xs active:scale-95 transition shrink-0">
                                     <i class="fa-solid fa-plus text-[10px]"></i>
                                 </button>
@@ -1403,19 +1485,19 @@ Win32 API
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">題型範圍過濾</label>
-                            <select id="quizTypeFilterSelect" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
-                                <option value="ALL">混合全部題型</option>
-                                <option value="SINGLE">僅測驗單選題</option>
-                                <option value="MULTI">僅測驗複選題</option>
-                                <option value="SINGLE_MULTI">僅測驗單/複選題</option>
-                                <option value="FILL">僅測驗填空題</option>
+                            <select id="quizTypeFilterSelect" onchange="saveQuizSetupPreferences()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                                <option value="ALL" ${quizPrefType === 'ALL' ? 'selected' : ''}>混合全部題型</option>
+                                <option value="SINGLE" ${quizPrefType === 'SINGLE' ? 'selected' : ''}>僅測驗單選題</option>
+                                <option value="MULTI" ${quizPrefType === 'MULTI' ? 'selected' : ''}>僅測驗複選題</option>
+                                <option value="SINGLE_MULTI" ${quizPrefType === 'SINGLE_MULTI' ? 'selected' : ''}>僅測驗單/複選題</option>
+                                <option value="FILL" ${quizPrefType === 'FILL' ? 'selected' : ''}>僅測驗填空題</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">選項與題目順序</label>
-                            <select id="quizOrderSelect" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
-                                <option value="SHUFFLE" selected>隨機打亂題目與選項</option>
-                                <option value="SEQUENTIAL">依題庫原順序出題</option>
+                            <select id="quizOrderSelect" onchange="saveQuizSetupPreferences()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-semibold outline-none focus:ring-2 focus:ring-indigo-400/50">
+                                <option value="SHUFFLE" ${quizPrefOrder === 'SHUFFLE' ? 'selected' : ''}>隨機打亂題目與選項</option>
+                                <option value="SEQUENTIAL" ${quizPrefOrder === 'SEQUENTIAL' ? 'selected' : ''}>依題庫原順序出題</option>
                             </select>
                         </div>
                     </div>
@@ -1432,6 +1514,36 @@ Win32 API
                     </div>
                 </div>
             `;
+        }
+
+        function saveQuizSetupPreferences() {
+            const countInput = document.getElementById('quizCountInput');
+            const typeSelect = document.getElementById('quizTypeFilterSelect');
+            const orderSelect = document.getElementById('quizOrderSelect');
+            if (countInput) {
+                const parsed = parseInt(countInput.value, 10);
+                if (!isNaN(parsed) && parsed >= 1) quizPrefCount = parsed;
+            }
+            if (typeSelect) quizPrefType = typeSelect.value;
+            if (orderSelect) quizPrefOrder = orderSelect.value;
+            persistUiState();
+        }
+
+        function adjustQuizCount(delta) {
+            const input = document.getElementById('quizCountInput');
+            if (!input) return;
+            const maxVal = parseInt(input.max, 10) || 999;
+            const curVal = parseInt(input.value, 10) || 0;
+            const nextVal = Math.min(maxVal, Math.max(1, curVal + delta));
+            input.value = nextVal;
+            saveQuizSetupPreferences();
+        }
+
+        function setQuizCountMax(totalPoolCount) {
+            const input = document.getElementById('quizCountInput');
+            if (!input) return;
+            input.value = Math.max(1, totalPoolCount);
+            saveQuizSetupPreferences();
         }
 
         function adjustQuizCount(delta) {
@@ -1521,6 +1633,7 @@ Win32 API
                 items: sessionItems
             };
 
+            saveQuizSetupPreferences();
             renderQuizWorkspace();
             const ws = document.getElementById('quizWorkspaceContainer');
             if (ws) ws.scrollTop = 0;
@@ -1542,6 +1655,7 @@ Win32 API
                     item.userAnswer.push(chosenText);
                 }
             }
+            persistUiState();
             renderQuizWorkspace();
         }
 
@@ -1550,6 +1664,7 @@ Win32 API
             const item = activeQuizSession.items[qIdx];
             if (!item) return;
             item.userAnswer[blankIdx] = value;
+            persistUiState();
 
             const answeredCount = activeQuizSession.items.filter(it => {
                 if (it.qType === 'FILL') {
@@ -1670,6 +1785,7 @@ Win32 API
                 '確定要放棄這場尚未交卷的測驗嗎？作答進度將不會儲存。',
                 () => {
                     activeQuizSession = null;
+                    persistUiState();
                     renderQuizWorkspace();
                 }
             );
@@ -1723,6 +1839,7 @@ Win32 API
                 window.quizHistory = window.quizHistory.slice(0, 50);
             }
             localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+            persistUiState();
 
             renderQuizHistorySidebar();
             renderQuizWorkspace();
@@ -1819,6 +1936,7 @@ Win32 API
 
         function exitQuizReview() {
             activeQuizSession = null;
+            persistUiState();
             renderQuizWorkspace();
         }
 
@@ -1826,6 +1944,7 @@ Win32 API
             const found = window.quizHistory.find(r => r.id === recId);
             if (!found) return;
             activeQuizSession = found;
+            persistUiState();
             renderQuizWorkspace();
             const ws = document.getElementById('quizWorkspaceContainer');
             if (ws) ws.scrollTop = 0;
@@ -1872,6 +1991,7 @@ Win32 API
                     if (activeQuizSession && activeQuizSession.status === 'submitted') {
                         activeQuizSession = null;
                     }
+                    persistUiState();
                     renderQuizHistorySidebar();
                     renderQuizWorkspace();
                     showToast('已清除所有測驗歷史紀錄', 'info');
@@ -2182,15 +2302,19 @@ Win32 API
         // 語言篩選切換函式
         function setLanguageFilter(lang) {
             selectedLanguage = lang;
-            ['ALL', 'ZH', 'EN'].forEach(code => {
-                const btn = document.getElementById(`langBtn_${code}`);
-                if (!btn) return;
-                if (code === lang) {
-                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500 text-white shadow-sm transition';
-                } else {
-                    btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition';
-                }
-            });
+            syncFilterButtonsUI();
+            performSearch();
+        }
+
+        // 判斷題目是否包含中文字元
+        function isChineseQuestion(text) {
+            return /[\u4e00-\u9fa5]/.test(text || '');
+        }
+
+        // 題型篩選切換函式
+        function setQuestionTypeFilter(qType) {
+            selectedQuestionType = qType;
+            syncFilterButtonsUI();
             performSearch();
         }
 
@@ -2545,6 +2669,7 @@ Win32 API
 
         // 搜尋比對與渲染卡片
         function performSearch() {
+            persistUiState();
             const searchInputEl = document.getElementById('searchInput');
             const clearBtn = document.getElementById('clearSearchBtn');
             if (clearBtn && searchInputEl) {
