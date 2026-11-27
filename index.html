@@ -454,13 +454,17 @@
                 </div>
             </div>
 
-            <!-- 2. 測驗單元分類選擇（與題目總覽相同分類階層模式） -->
+            <!-- 2. 測驗單元分類選擇（支援自由刪除、編輯順序與修改名稱） -->
             <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
                 <div class="flex flex-wrap justify-between items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
                     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <i class="fa-solid fa-layer-group text-indigo-500 dark:text-indigo-400"></i> 選擇測驗單元
                     </h2>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <button id="toggleQuizReorderBtn" onclick="toggleQuizReorderMode()" class="px-2 py-0.5 text-[11px] font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700" title="編輯測驗分類順序與名稱">
+                            <i id="toggleQuizReorderIcon" class="fa-solid fa-pen-to-square text-indigo-500"></i>
+                            <span id="toggleQuizReorderText">編輯分類</span>
+                        </button>
                         <button type="button" id="quizPushCloudBtn" onclick="uploadToFirebase()" title="推送測驗題庫與紀錄至雲端" class="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 transition flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed">
                             <i class="fa-solid fa-cloud-arrow-up"></i> <span>推送雲端</span>
                         </button>
@@ -621,7 +625,7 @@
         </div>
     </div>
 
-    <!-- 類別更名 Modal 彈窗 (獨立層級) -->
+    <!-- 類別更名 Modal 彈窗 (獨立層級，同時支援題庫總覽與測驗模式) -->
     <div id="renameCategoryModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeRenameModal()">
         <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -712,6 +716,55 @@
         </div>
     </div>
 
+    <!-- 編輯測驗題目 Modal 彈窗 (獨立用於測驗模式題庫管理) -->
+    <div id="editQuizQuestionModal" class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-50 p-4" onclick="if(event.target===this) closeEditQuizQuestionModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 dark:border-slate-800 animate-modal" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-regular fa-pen-to-square text-indigo-500"></i> 編輯測驗題目
+                </h3>
+                <button onclick="closeEditQuizQuestionModal()" class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition flex items-center justify-center text-sm font-bold">×</button>
+            </div>
+
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別</label>
+                        <input type="text" id="editQuizCategoryInput" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別 (單元)</label>
+                        <input type="text" id="editQuizSubCategoryInput" class="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">題目內容</label>
+                    <textarea id="editQuizQuestionInput" rows="3" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none font-mono"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">選項列表 (一列一個選項，填空題可留空)</label>
+                    <textarea id="editQuizOptionsInput" rows="4" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none font-mono"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">正確答案 (一列一個答案)</label>
+                    <textarea id="editQuizAnswersInput" rows="2" class="w-full p-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none font-mono"></textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+                <button onclick="saveQuizQuestionEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-2.5 rounded-xl font-bold shadow-sm transition">
+                    儲存修改
+                </button>
+                <button onclick="closeEditQuizQuestionModal()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs px-4 py-2.5 rounded-xl font-semibold transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast 通知與 Confirm 視窗容器 -->
     <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
@@ -778,6 +831,12 @@
         // ===== 獨立測驗模式狀態與資料儲存 (與題庫總覽完全隔離) =====
         window.quizBank = JSON.parse(localStorage.getItem('independent_quiz_bank_v1')) || [];
         window.quizHistory = JSON.parse(localStorage.getItem('independent_quiz_history_v1')) || [];
+        window.quizCategoryOrder = JSON.parse(localStorage.getItem('quiz_category_order_v1')) || [];
+        window.quizSubCategoryOrder = JSON.parse(localStorage.getItem('quiz_sub_category_order_v1')) || {};
+        let isReorderingQuizCategories = false;
+        let isManagingQuizQuestions = false;
+        let currentEditingQuizQuestionId = null;
+
         let currentSystemMode = savedUiState.currentSystemMode || 'overview'; // 'overview' | 'quiz'
         let quizSelectedCategory = savedUiState.quizSelectedCategory || 'ALL';
         let quizSelectedSubCategory = savedUiState.quizSelectedSubCategory || 'ALL';
@@ -887,11 +946,21 @@
                             <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                 <i class="fa-solid fa-graduation-cap text-indigo-500"></i> 開始模擬測驗
                             </h2>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">目前選擇範圍：<span class="font-bold text-indigo-600 dark:text-indigo-400">${scopeLabel}</span></p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">目前選擇範圍：<span class="font-bold text-indigo-600 dark:text-indigo-400">${escapeHtml(scopeLabel)}</span></p>
                         </div>
-                        <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/50">
-                            範圍內共 ${pool.length} 題
-                        </span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="toggleQuizQuestionManageMode()" class="px-3 py-1 rounded-full text-xs font-semibold border transition flex items-center gap-1.5 ${
+                                isManagingQuizQuestions
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            }">
+                                <i class="fa-solid ${isManagingQuizQuestions ? 'fa-check' : 'fa-list-check'}"></i>
+                                <span>${isManagingQuizQuestions ? '完成題目管理' : '管理範圍內題目'}</span>
+                            </button>
+                            <span class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/50">
+                                範圍內共 ${pool.length} 題
+                            </span>
+                        </div>
                     </div>
 
                     <!-- 題型分佈統計 -->
@@ -958,6 +1027,180 @@
                     </div>
                 </div>
             `;
+
+            if (isManagingQuizQuestions) {
+                container.innerHTML += renderQuizQuestionManagerHtml(pool);
+            }
+        }
+
+        function toggleQuizQuestionManageMode() {
+            isManagingQuizQuestions = !isManagingQuizQuestions;
+            renderQuizWorkspace();
+        }
+
+        function renderQuizQuestionManagerHtml(pool) {
+            if (!pool || pool.length === 0) {
+                return `
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-center text-slate-400 dark:text-slate-500 text-xs shadow-sm">
+                        目前範圍內尚無測驗題目可管理
+                    </div>
+                `;
+            }
+
+            const cardsHtml = pool.map((item, idx) => {
+                const typeLabel = item.qType === 'SINGLE' ? '單選' : (item.qType === 'MULTI' ? '複選' : '填空');
+                const typeBadgeClass = item.qType === 'SINGLE'
+                    ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300'
+                    : (item.qType === 'MULTI'
+                        ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300'
+                        : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300');
+                const catLabel = item.subcategory ? `${item.category} / ${item.subcategory}` : item.category;
+
+                return `
+                    <div class="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                        <div class="flex flex-wrap justify-between items-center gap-2">
+                            <div class="flex items-center gap-1.5">
+                                <span class="bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 text-[11px] px-2 py-0.5 rounded-md font-extrabold">#${idx + 1}</span>
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${typeBadgeClass}">${typeLabel}</span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">${escapeHtml(catLabel)}</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button type="button" onclick="moveQuizQuestion('${item.id}', -1)" ${idx === 0 ? 'disabled' : ''} title="上移一題（調整順序）" class="px-2 py-1 rounded-lg text-[11px] font-bold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition ${idx === 0 ? 'opacity-35 cursor-not-allowed' : ''}">
+                                    <i class="fa-solid fa-arrow-up"></i>
+                                </button>
+                                <button type="button" onclick="moveQuizQuestion('${item.id}', 1)" ${idx === pool.length - 1 ? 'disabled' : ''} title="下移一題（調整順序）" class="px-2 py-1 rounded-lg text-[11px] font-bold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition ${idx === pool.length - 1 ? 'opacity-35 cursor-not-allowed' : ''}">
+                                    <i class="fa-solid fa-arrow-down"></i>
+                                </button>
+                                <button type="button" onclick="openEditQuizQuestionModal('${item.id}')" title="編輯此題內容與選項" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50/90 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 transition flex items-center gap-1">
+                                    <i class="fa-regular fa-pen-to-square"></i> 編輯
+                                </button>
+                                <button type="button" onclick="deleteQuizQuestion('${item.id}')" title="刪除此測驗題目" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-50/90 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 transition">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">${escapeHtml(item.question)}</div>
+                        ${(item.options && item.options.length > 0) ? `
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 pl-2 border-l-2 border-slate-200 dark:border-slate-700 space-y-0.5">
+                                ${item.options.map((opt, oIdx) => `<div>${String.fromCharCode(65 + oIdx)}. ${escapeHtml(opt)}</div>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                            ✓ 正確答案：${escapeHtml((item.answers || []).join(' 、 '))}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-amber-500"></i> 題目順序調整、編輯與刪除（共 ${pool.length} 題）
+                        </h3>
+                        <span class="text-[11px] text-slate-400 dark:text-slate-500">調整順序後，選擇「依題庫原順序出題」即可生效</span>
+                    </div>
+                    <div class="space-y-2.5">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function moveQuizQuestion(qId, direction) {
+            const pool = getFilteredQuizPool();
+            const poolIdx = pool.findIndex(q => String(q.id) === String(qId));
+            const targetPoolIdx = poolIdx + direction;
+            if (poolIdx === -1 || targetPoolIdx < 0 || targetPoolIdx >= pool.length) return;
+
+            const currentItem = pool[poolIdx];
+            const targetItem = pool[targetPoolIdx];
+
+            const realIdxA = window.quizBank.findIndex(q => String(q.id) === String(currentItem.id));
+            const realIdxB = window.quizBank.findIndex(q => String(q.id) === String(targetItem.id));
+            if (realIdxA === -1 || realIdxB === -1) return;
+
+            const temp = window.quizBank[realIdxA];
+            window.quizBank[realIdxA] = window.quizBank[realIdxB];
+            window.quizBank[realIdxB] = temp;
+
+            localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+            renderQuizWorkspace();
+        }
+
+        function deleteQuizQuestion(qId) {
+            showConfirm(
+                '刪除測驗題目',
+                '確定要從測驗題庫中刪除這道題目嗎？此操作無法復原。',
+                () => {
+                    window.quizBank = (window.quizBank || []).filter(q => String(q.id) !== String(qId));
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    refreshQuizModeUI();
+                    showToast('已刪除該測驗題目', 'info');
+                }
+            );
+        }
+
+        function openEditQuizQuestionModal(qId) {
+            const item = (window.quizBank || []).find(q => String(q.id) === String(qId));
+            if (!item) {
+                showToast('找不到該測驗題目！', 'error');
+                return;
+            }
+            currentEditingQuizQuestionId = qId;
+            document.getElementById('editQuizCategoryInput').value = item.category || '';
+            document.getElementById('editQuizSubCategoryInput').value = item.subcategory || '';
+            document.getElementById('editQuizQuestionInput').value = item.question || '';
+            document.getElementById('editQuizOptionsInput').value = (item.options || []).join('\n');
+            document.getElementById('editQuizAnswersInput').value = (item.answers || []).join('\n');
+
+            const modal = document.getElementById('editQuizQuestionModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeEditQuizQuestionModal() {
+            const modal = document.getElementById('editQuizQuestionModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            currentEditingQuizQuestionId = null;
+        }
+
+        function saveQuizQuestionEdit() {
+            if (!currentEditingQuizQuestionId) return;
+            const category = document.getElementById('editQuizCategoryInput').value.trim() || '未分類';
+            const subcategory = document.getElementById('editQuizSubCategoryInput').value.trim() || '';
+            const questionText = document.getElementById('editQuizQuestionInput').value.trim();
+            const optionsText = document.getElementById('editQuizOptionsInput').value;
+            const answersText = document.getElementById('editQuizAnswersInput').value.trim();
+
+            if (!questionText) {
+                showToast('題目內容不能為空！', 'error');
+                return;
+            }
+
+            const options = optionsText.split('\n').map(o => o.trim()).filter(Boolean);
+            const answers = answersText.split('\n').map(a => a.trim()).filter(Boolean);
+            const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(questionText) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(questionText) || options.length === 0;
+            const qType = isFill ? 'FILL' : (answers.length > 1 ? 'MULTI' : 'SINGLE');
+
+            const idx = window.quizBank.findIndex(q => String(q.id) === String(currentEditingQuizQuestionId));
+            if (idx !== -1) {
+                window.quizBank[idx].category = category;
+                window.quizBank[idx].subcategory = subcategory;
+                window.quizBank[idx].question = questionText;
+                window.quizBank[idx].options = options;
+                window.quizBank[idx].answers = answers.length > 0 ? answers : ['(未提供答案)'];
+                window.quizBank[idx].qType = qType;
+                localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                refreshQuizModeUI();
+                showToast('已完成測驗題目更新！', 'success');
+            }
+            closeEditQuizQuestionModal();
         }
 
         function saveQuizSetupPreferences() {
@@ -1498,7 +1741,7 @@
         }
 
         /**
-         * 專用測驗成績過濾解析演算法（支援無題目開頭、同行混排成績單格式）
+- 專用測驗成績過濾解析演算法（支援無題目開頭、同行混排成績單格式）
          */
         function parseAndImportText() {
             const rawText = document.getElementById('importTextarea').value.trim();
@@ -1901,7 +2144,7 @@
                         <div class="inline-flex items-center rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
                             <button onclick="moveCategory(${idx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>◀</button>
                             <span class="px-1 font-semibold">${cat}</span>
-                            <button onclick="openRenameModal('category', '', decodeURIComponent('${safeCat}'))" title="編輯類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                            <button onclick="openRenameModal('category', '', decodeURIComponent('${safeCat}'), 'overview')" title="編輯類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
                             <button onclick="moveCategory(${idx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-lg text-sky-600 dark:text-sky-400 font-bold ${idx === categories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === categories.length - 1 ? 'disabled' : ''}>▶</button>
                         </div>
                     `;
@@ -1955,7 +2198,7 @@
                                 <div class="inline-flex items-center rounded-lg text-xs bg-slate-100 dark:bg-slate-800 border border-sky-300 dark:border-sky-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
                                     <button onclick="moveSubCategory(decodeURIComponent('${safeSelectedCat}'), ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
                                     <span class="px-1 font-semibold">${sub}</span>
-                                    <button onclick="openRenameModal('subcategory', decodeURIComponent('${safeSelectedCat}'), decodeURIComponent('${safeSub}'))" title="編輯子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                    <button onclick="openRenameModal('subcategory', decodeURIComponent('${safeSelectedCat}'), decodeURIComponent('${safeSub}'), 'overview')" title="編輯子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
                                     <button onclick="moveSubCategory(decodeURIComponent('${safeSelectedCat}'), ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-sky-200 dark:hover:bg-sky-800 rounded-md text-sky-600 dark:text-sky-400 font-bold ${sIdx === subcategories.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subcategories.length - 1 ? 'disabled' : ''}>▶</button>
                                 </div>
                             `;
@@ -1984,18 +2227,19 @@
 
         let currentRenameInfo = null;
 
-        function openRenameModal(type, parentCat, oldName) {
-            currentRenameInfo = { type, parentCat, oldName };
+        function openRenameModal(type, parentCat, oldName, scope = 'overview') {
+            currentRenameInfo = { type, parentCat, oldName, scope };
             const modal = document.getElementById('renameCategoryModal');
             const titleEl = document.getElementById('renameModalTitle');
             const labelEl = document.getElementById('renameInputLabel');
             const inputEl = document.getElementById('renameCategoryInput');
 
+            const scopePrefix = scope === 'quiz' ? '測驗' : '';
             if (type === 'category') {
-                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯母類別名稱`;
+                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯${scopePrefix}母類別名稱`;
                 labelEl.innerText = `原名稱：「${oldName}」`;
             } else {
-                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯子類別名稱`;
+                titleEl.innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 編輯${scopePrefix}子類別名稱`;
                 labelEl.innerText = `母類別：${parentCat} ➔ 原名稱：「${oldName}」`;
             }
 
@@ -2027,9 +2271,65 @@
                 return;
             }
 
-            const { type, parentCat, oldName } = currentRenameInfo;
+            const { type, parentCat, oldName, scope } = currentRenameInfo;
 
             if (newName === oldName) {
+                closeRenameModal();
+                return;
+            }
+
+            if (scope === 'quiz') {
+                if (type === 'category') {
+                    (window.quizBank || []).forEach(q => {
+                        if (q.category === oldName) {
+                            q.category = newName;
+                        }
+                    });
+
+                    const idx = window.quizCategoryOrder.indexOf(oldName);
+                    if (idx !== -1) {
+                        window.quizCategoryOrder[idx] = newName;
+                    }
+
+                    if (window.quizSubCategoryOrder[oldName]) {
+                        window.quizSubCategoryOrder[newName] = window.quizSubCategoryOrder[oldName];
+                        delete window.quizSubCategoryOrder[oldName];
+                    }
+
+                    if (quizSelectedCategory === oldName) {
+                        quizSelectedCategory = newName;
+                    }
+
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    localStorage.setItem('quiz_category_order_v1', JSON.stringify(window.quizCategoryOrder));
+                    localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+                    persistUiState();
+                    refreshQuizModeUI();
+                    showToast(`測驗母類別已更名為「${newName}」`, 'success');
+                } else {
+                    (window.quizBank || []).forEach(q => {
+                        if (q.category === parentCat && q.subcategory === oldName) {
+                            q.subcategory = newName;
+                        }
+                    });
+
+                    if (window.quizSubCategoryOrder[parentCat]) {
+                        const sIdx = window.quizSubCategoryOrder[parentCat].indexOf(oldName);
+                        if (sIdx !== -1) {
+                            window.quizSubCategoryOrder[parentCat][sIdx] = newName;
+                        }
+                    }
+
+                    if (quizSelectedSubCategory === oldName) {
+                        quizSelectedSubCategory = newName;
+                    }
+
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+                    persistUiState();
+                    refreshQuizModeUI();
+                    showToast(`測驗子類別已更名為「${newName}」`, 'success');
+                }
                 closeRenameModal();
                 return;
             }
@@ -2730,7 +3030,9 @@
                 categoryOrder: window.categoryOrder,
                 subCategoryOrder: window.subCategoryOrder,
                 quizBank: window.quizBank || [],
-                quizHistory: window.quizHistory || []
+                quizHistory: window.quizHistory || [],
+                quizCategoryOrder: window.quizCategoryOrder || [],
+                quizSubCategoryOrder: window.quizSubCategoryOrder || {}
             };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
             const anchor = document.createElement('a');
@@ -2778,6 +3080,14 @@
                         if (Array.isArray(imported.quizHistory)) {
                             window.quizHistory = imported.quizHistory;
                             localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+                        }
+                        if (Array.isArray(imported.quizCategoryOrder)) {
+                            window.quizCategoryOrder = imported.quizCategoryOrder;
+                            localStorage.setItem('quiz_category_order_v1', JSON.stringify(window.quizCategoryOrder));
+                        }
+                        if (imported.quizSubCategoryOrder && typeof imported.quizSubCategoryOrder === 'object') {
+                            window.quizSubCategoryOrder = imported.quizSubCategoryOrder;
+                            localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
                         }
                         saveAndRefresh();
                         refreshQuizModeUI();
@@ -2985,6 +3295,8 @@
                     quizMode: {
                         quizBank: window.quizBank || [],
                         quizHistory: window.quizHistory || [],
+                        quizCategoryOrder: window.quizCategoryOrder || [],
+                        quizSubCategoryOrder: window.quizSubCategoryOrder || {},
                         updatedAt: Date.now()
                     }
                 });
@@ -3102,6 +3414,15 @@
 
                             window.quizHistory = normalizeFirebaseArray(data.quizMode.quizHistory);
                             localStorage.setItem('independent_quiz_history_v1', JSON.stringify(window.quizHistory));
+
+                            if (data.quizMode.quizCategoryOrder !== undefined) {
+                                window.quizCategoryOrder = normalizeFirebaseArray(data.quizMode.quizCategoryOrder);
+                                localStorage.setItem('quiz_category_order_v1', JSON.stringify(window.quizCategoryOrder));
+                            }
+                            if (data.quizMode.quizSubCategoryOrder && typeof data.quizMode.quizSubCategoryOrder === 'object') {
+                                window.quizSubCategoryOrder = data.quizMode.quizSubCategoryOrder;
+                                localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+                            }
                         }
                     }
                     saveAndRefresh();
@@ -3236,6 +3557,124 @@
             performSearch();
         }
 
+        function getSortedQuizCategories() {
+            const existingCats = [...new Set((window.quizBank || []).map(q => q.category).filter(Boolean))];
+            return [...existingCats].sort((a, b) => {
+                const idxA = window.quizCategoryOrder.indexOf(a);
+                const idxB = window.quizCategoryOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return naturalSortCompare(a, b);
+            });
+        }
+
+        function getSortedQuizSubCategories(parentCat) {
+            const existingSubCats = [...new Set(
+                (window.quizBank || [])
+                    .filter(q => q.category === parentCat && q.subcategory)
+                    .map(q => q.subcategory)
+            )];
+            const customSubOrder = window.quizSubCategoryOrder[parentCat] || [];
+            return [...existingSubCats].sort((a, b) => {
+                const idxA = customSubOrder.indexOf(a);
+                const idxB = customSubOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return naturalSortCompare(a, b);
+            });
+        }
+
+        function toggleQuizReorderMode() {
+            isReorderingQuizCategories = !isReorderingQuizCategories;
+            const btnText = document.getElementById('toggleQuizReorderText');
+            const btnIcon = document.getElementById('toggleQuizReorderIcon');
+            const btn = document.getElementById('toggleQuizReorderBtn');
+
+            if (btnText && btnIcon && btn) {
+                if (isReorderingQuizCategories) {
+                    btnText.innerText = '完成編輯';
+                    btnIcon.className = 'fa-solid fa-check text-white';
+                    btn.className = 'px-2 py-0.5 text-[11px] font-semibold rounded-lg transition border flex items-center gap-1 bg-amber-500 text-white border-amber-600 shadow-sm';
+                } else {
+                    btnText.innerText = '編輯分類';
+                    btnIcon.className = 'fa-solid fa-pen-to-square text-indigo-500';
+                    btn.className = 'px-2 py-0.5 text-[11px] font-semibold rounded-lg transition border flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700';
+                }
+            }
+            refreshQuizModeUI();
+        }
+
+        function moveQuizCategory(index, direction) {
+            const categories = getSortedQuizCategories();
+            const targetIdx = index + direction;
+            if (targetIdx < 0 || targetIdx >= categories.length) return;
+
+            window.quizCategoryOrder = [...categories];
+            const item = window.quizCategoryOrder.splice(index, 1)[0];
+            window.quizCategoryOrder.splice(targetIdx, 0, item);
+
+            localStorage.setItem('quiz_category_order_v1', JSON.stringify(window.quizCategoryOrder));
+            refreshQuizModeUI();
+        }
+
+        function moveQuizSubCategory(parentCat, index, direction) {
+            const subcategories = getSortedQuizSubCategories(parentCat);
+            const targetIdx = index + direction;
+            if (targetIdx < 0 || targetIdx >= subcategories.length) return;
+
+            window.quizSubCategoryOrder[parentCat] = [...subcategories];
+            const item = window.quizSubCategoryOrder[parentCat].splice(index, 1)[0];
+            window.quizSubCategoryOrder[parentCat].splice(targetIdx, 0, item);
+
+            localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+            refreshQuizModeUI();
+        }
+
+        function deleteQuizCategory(cat) {
+            showConfirm(
+                '刪除測驗母類別',
+                `確定要刪除「${cat}」測驗母類別及其所有題目嗎？此操作無法復原。`,
+                () => {
+                    window.quizBank = (window.quizBank || []).filter(q => q.category !== cat);
+                    window.quizCategoryOrder = window.quizCategoryOrder.filter(c => c !== cat);
+                    delete window.quizSubCategoryOrder[cat];
+                    if (quizSelectedCategory === cat) {
+                        quizSelectedCategory = 'ALL';
+                        quizSelectedSubCategory = 'ALL';
+                    }
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    localStorage.setItem('quiz_category_order_v1', JSON.stringify(window.quizCategoryOrder));
+                    localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+                    persistUiState();
+                    refreshQuizModeUI();
+                    showToast(`已刪除測驗母類別「${cat}」及相關題目`, 'info');
+                }
+            );
+        }
+
+        function deleteQuizSubCategory(parentCat, subCat) {
+            showConfirm(
+                '刪除測驗子類別單元',
+                `確定要刪除「${parentCat} ➔ ${subCat}」單元及其所有測驗題目嗎？此操作無法復原。`,
+                () => {
+                    window.quizBank = (window.quizBank || []).filter(q => !(q.category === parentCat && q.subcategory === subCat));
+                    if (window.quizSubCategoryOrder[parentCat]) {
+                        window.quizSubCategoryOrder[parentCat] = window.quizSubCategoryOrder[parentCat].filter(s => s !== subCat);
+                    }
+                    if (quizSelectedSubCategory === subCat) {
+                        quizSelectedSubCategory = 'ALL';
+                    }
+                    localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
+                    localStorage.setItem('quiz_sub_category_order_v1', JSON.stringify(window.quizSubCategoryOrder));
+                    persistUiState();
+                    refreshQuizModeUI();
+                    showToast(`已刪除測驗子類別「${subCat}」及相關題目`, 'info');
+                }
+            );
+        }
+
         function getFilteredQuizPool() {
             return (window.quizBank || []).filter(q => {
                 const matchCat = quizSelectedCategory === 'ALL' || q.category === quizSelectedCategory;
@@ -3262,10 +3701,9 @@
             const catInput = document.getElementById('quizCategoryNameInput');
             if (!subList || !catInput) return;
             const parentCat = catInput.value.trim();
-            const subs = [...new Set((window.quizBank || [])
-                .filter(q => !parentCat || q.category === parentCat)
-                .map(q => q.subcategory)
-                .filter(Boolean))];
+            const subs = parentCat
+                ? getSortedQuizSubCategories(parentCat)
+                : [...new Set((window.quizBank || []).map(q => q.subcategory).filter(Boolean))];
             subList.innerHTML = subs.map(s => `<option value="${s}">`).join('');
         }
 
@@ -3274,18 +3712,34 @@
             if (totalBadge) totalBadge.innerText = `測驗庫 ${(window.quizBank || []).length} 題`;
 
             const catDatalist = document.getElementById('quizCategoriesDatalist');
-            const cats = [...new Set((window.quizBank || []).map(q => q.category).filter(Boolean))];
+            const cats = getSortedQuizCategories();
             if (catDatalist) catDatalist.innerHTML = cats.map(c => `<option value="${c}">`).join('');
             updateQuizSubCategoryDatalist();
 
             const catListEl = document.getElementById('quizCategoryList');
             if (catListEl) {
                 let html = `<button onclick="filterQuizCategory('ALL')" class="px-3 py-1 rounded-xl text-xs font-semibold transition ${quizSelectedCategory === 'ALL' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">全部 (${(window.quizBank || []).length})</button>`;
-                cats.forEach(c => {
+                cats.forEach((c, idx) => {
                     const cnt = window.quizBank.filter(q => q.category === c).length;
                     const active = c === quizSelectedCategory;
                     const safeC = encodeURIComponent(c);
-                    html += `<button onclick="filterQuizCategory(decodeURIComponent('${safeC}'))" class="px-2.5 py-1 rounded-xl text-xs font-semibold transition ${active ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">${escapeHtml(c)} (${cnt})</button>`;
+                    if (isReorderingQuizCategories) {
+                        html += `
+                            <div class="inline-flex items-center rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
+                                <button onclick="moveQuizCategory(${idx}, -1)" class="px-1.5 py-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-lg text-indigo-600 dark:text-indigo-400 font-bold ${idx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === 0 ? 'disabled' : ''}>◀</button>
+                                <span class="px-1 font-semibold">${escapeHtml(c)}</span>
+                                <button onclick="openRenameModal('category', '', decodeURIComponent('${safeC}'), 'quiz')" title="編輯測驗母類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                <button onclick="moveQuizCategory(${idx}, 1)" class="px-1.5 py-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-lg text-indigo-600 dark:text-indigo-400 font-bold ${idx === cats.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${idx === cats.length - 1 ? 'disabled' : ''}>▶</button>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="inline-flex items-center rounded-xl text-xs transition ${active ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">
+                                <button onclick="filterQuizCategory(decodeURIComponent('${safeC}'))" class="px-2.5 py-1 font-semibold">${escapeHtml(c)} (${cnt})</button>
+                                <button onclick="deleteQuizCategory(decodeURIComponent('${safeC}'))" title="刪除測驗母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-400 font-bold">×</button>
+                            </div>
+                        `;
+                    }
                 });
                 catListEl.innerHTML = html;
             }
@@ -3296,15 +3750,32 @@
                 if (quizSelectedCategory === 'ALL') {
                     subSec.classList.add('hidden');
                 } else {
-                    const subs = [...new Set(window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory).map(q => q.subcategory))];
+                    const subs = getSortedQuizSubCategories(quizSelectedCategory);
                     if (subs.length > 0) {
                         subSec.classList.remove('hidden');
                         let sHtml = `<button onclick="filterQuizSubCategory('ALL')" class="px-2.5 py-0.5 rounded-lg text-xs font-semibold transition ${quizSelectedSubCategory === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">全部單元</button>`;
-                        subs.forEach(s => {
+                        const safeParentCat = encodeURIComponent(quizSelectedCategory);
+                        subs.forEach((s, sIdx) => {
                             const sCnt = window.quizBank.filter(q => q.category === quizSelectedCategory && q.subcategory === s).length;
                             const sActive = s === quizSelectedSubCategory;
                             const safeS = encodeURIComponent(s);
-                            sHtml += `<button onclick="filterQuizSubCategory(decodeURIComponent('${safeS}'))" class="px-2 py-0.5 rounded-lg text-xs font-semibold transition ${sActive ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">${escapeHtml(s)} (${sCnt})</button>`;
+                            if (isReorderingQuizCategories) {
+                                sHtml += `
+                                    <div class="inline-flex items-center rounded-lg text-xs bg-slate-100 dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 text-slate-700 dark:text-slate-200 shadow-sm p-0.5">
+                                        <button onclick="moveQuizSubCategory(decodeURIComponent('${safeParentCat}'), ${sIdx}, -1)" class="px-1.5 py-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-md text-indigo-600 dark:text-indigo-400 font-bold ${sIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === 0 ? 'disabled' : ''}>◀</button>
+                                        <span class="px-1 font-semibold">${escapeHtml(s)}</span>
+                                        <button onclick="openRenameModal('subcategory', decodeURIComponent('${safeParentCat}'), decodeURIComponent('${safeS}'), 'quiz')" title="編輯測驗子類別名稱" class="px-1 text-amber-600 hover:text-amber-700 font-bold"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                        <button onclick="moveQuizSubCategory(decodeURIComponent('${safeParentCat}'), ${sIdx}, 1)" class="px-1.5 py-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-md text-indigo-600 dark:text-indigo-400 font-bold ${sIdx === subs.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${sIdx === subs.length - 1 ? 'disabled' : ''}>▶</button>
+                                    </div>
+                                `;
+                            } else {
+                                sHtml += `
+                                    <div class="inline-flex items-center rounded-lg text-xs transition ${sActive ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">
+                                        <button onclick="filterQuizSubCategory(decodeURIComponent('${safeS}'))" class="px-2 py-0.5 font-semibold">${escapeHtml(s)} (${sCnt})</button>
+                                        <button onclick="deleteQuizSubCategory(decodeURIComponent('${safeParentCat}'), decodeURIComponent('${safeS}'))" title="刪除此單元全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">×</button>
+                                    </div>
+                                `;
+                            }
                         });
                         subListEl.innerHTML = sHtml;
                     } else {
