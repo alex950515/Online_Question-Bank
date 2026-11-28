@@ -213,7 +213,13 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">貼上題目文字</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">貼上題目文字</label>
+                        <label class="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold cursor-pointer flex items-center gap-1" title="讀取考試結果 .html 檔，自動擷取題目與正確答案並匯入">
+                            <i class="fa-solid fa-file-code"></i> 載入 .html 檔
+                            <input type="file" id="overviewHtmlImportInput" accept=".html,.htm" class="hidden" onchange="handleOverviewHtmlImport(event)">
+                        </label>
+                    </div>
                     <textarea id="importTextarea" rows="5" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="支援貼上考試成績單或純題目格式，系統將自動過濾個人作答與得分並匯入..."></textarea>
                 </div>
 
@@ -1054,6 +1060,48 @@
 
             if (isManagingQuizQuestions) {
                 container.innerHTML += renderQuizQuestionManagerHtml(pool);
+                const searchEl = document.getElementById('quizManageSearchInput');
+                if (searchEl && quizManageQuery) {
+                    searchEl.value = quizManageQuery;
+                    filterQuizManageList(quizManageQuery);
+                }
+            }
+        }
+
+        // 題目清單搜尋 (只隱藏不符合的卡片，保留原本題號)
+        let quizManageQuery = '';
+        function filterQuizManageList(value) {
+            quizManageQuery = value || '';
+            const q = quizManageQuery.trim().toLowerCase();
+            const cardsEls = document.querySelectorAll('[data-quiz-manage-card]');
+            let visible = 0;
+            cardsEls.forEach(el => {
+                const match = !q || (el.getAttribute('data-search') || '').includes(escapeHtml(q));
+                el.classList.toggle('hidden', !match);
+                if (match) visible++;
+            });
+            const emptyEl = document.getElementById('quizManageSearchEmpty');
+            if (emptyEl) emptyEl.classList.toggle('hidden', visible > 0 || cardsEls.length === 0);
+        }
+
+        // 從左側類別/單元直接開啟該範圍的題目清單
+        function viewQuizUnitQuestions(cat, sub) {
+            if (activeQuizSession && activeQuizSession.status === 'in_progress') {
+                showToast('測驗進行中，請先交卷或放棄測驗後再檢視題目', 'error');
+                return;
+            }
+            if (activeQuizSession && activeQuizSession.status === 'submitted') {
+                activeQuizSession = null;
+            }
+            quizSelectedCategory = cat;
+            quizSelectedSubCategory = sub || 'ALL';
+            isManagingQuizQuestions = true;
+            quizManageQuery = '';
+            persistUiState();
+            refreshQuizModeUI();
+            const manager = document.getElementById('quizQuestionManager');
+            if (manager && typeof manager.scrollIntoView === 'function') {
+                manager.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
 
@@ -1081,7 +1129,7 @@
                 const catLabel = item.subcategory ? `${item.category} / ${item.subcategory}` : item.category;
 
                 return `
-                    <div class="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div data-quiz-manage-card data-search="${escapeHtml([item.question, ...(item.options || []), ...(item.answers || [])].join(' ').toLowerCase()).replace(/"/g, '&quot;')}" class="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
                         <div class="flex flex-wrap justify-between items-center gap-2">
                             <div class="flex items-center gap-1.5">
                                 <span class="bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 text-[11px] px-2 py-0.5 rounded-md font-extrabold">#${idx + 1}</span>
@@ -1117,13 +1165,18 @@
             }).join('');
 
             return `
-                <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 shadow-sm space-y-3">
-                    <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div id="quizQuestionManager" class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 shadow-sm space-y-3">
+                    <div class="flex flex-wrap justify-between items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                         <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            <i class="fa-solid fa-sliders text-amber-500"></i> 題目順序調整、編輯與刪除（共 ${pool.length} 題）
+                            <i class="fa-solid fa-sliders text-amber-500"></i> 題目檢視、編輯與順序調整（共 ${pool.length} 題）
                         </h3>
                         <span class="text-[11px] text-slate-400 dark:text-slate-500">調整順序後，選擇「依題庫原順序出題」即可生效</span>
                     </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="quizManageSearchInput" oninput="filterQuizManageList(this.value)" placeholder="搜尋此範圍內的題目、選項或答案..." class="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-400/50 focus:border-amber-500 outline-none transition">
+                    </div>
+                    <p id="quizManageSearchEmpty" class="hidden text-center text-xs text-slate-400 dark:text-slate-500 py-3">找不到符合的題目</p>
                     <div class="space-y-2.5">
                         ${cardsHtml}
                     </div>
@@ -1978,6 +2031,66 @@
             } else {
                 showToast(`成功匯入 ${newAddedCount} 道題目！`, 'success');
             }
+        }
+
+        // 從考試結果 .html 擷取「題目」與「正確答案」(忽略你的答案、得分)，轉為匯入用文字格式
+        function extractQuestionsFromResultHtml(htmlContent) {
+            const doc = new DOMParser().parseFromString(htmlContent, 'text/html');
+            const items = [];
+            let current = null;
+
+            const getLines = (p) => {
+                const clone = p.cloneNode(true);
+                const strong = clone.querySelector('strong, b');
+                if (strong) strong.remove();
+                clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+                return (clone.textContent || '')
+                    .split('\n')
+                    .map(l => l.replace(/\s+/g, ' ').trim())
+                    .filter(Boolean);
+            };
+
+            doc.querySelectorAll('p').forEach(p => {
+                const label = ((p.querySelector('strong, b') || {}).textContent || '').replace(/\s+/g, '');
+                if (/^題目[：:]?$/.test(label)) {
+                    const lines = getLines(p);
+                    current = { question: lines.join(' '), answers: [] };
+                    items.push(current);
+                } else if (/^正確答案[：:]?$/.test(label) && current) {
+                    current.answers = getLines(p);
+                }
+            });
+
+            return items.filter(it => it.question);
+        }
+
+        function handleOverviewHtmlImport(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const items = extractQuestionsFromResultHtml(e.target.result || '');
+                    if (items.length === 0) {
+                        showToast(`「${file.name}」中找不到「題目：」與「正確答案：」格式的題目`, 'error');
+                        return;
+                    }
+                    const noAnswer = items.filter(it => it.answers.length === 0).length;
+                    const text = items.map(it =>
+                        `題目：${it.question}\n正確答案：\n${it.answers.join('\n')}`
+                    ).join('\n');
+                    document.getElementById('importTextarea').value = text;
+                    parseAndImportText();
+                    if (noAnswer > 0) {
+                        showToast(`注意：「${file.name}」有 ${noAnswer} 題未顯示正確答案，已標記為「(未提供正確答案)」`, 'info');
+                    }
+                } catch (err) {
+                    showToast('讀取 .html 檔失敗：' + err.message, 'error');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
         }
 
         // 中文數字轉換與自然排序比較器
@@ -3052,9 +3165,21 @@
             );
         }
 
+        // 去重共用：只排除「看不到」的差異，看得到的文字仍須完全相同
+        //  1. 隱形字元 (零寬空白、BOM 等) 移除
+        //  2. 各種空白 (含不換行空白) 與連續空白視為一個空白，前後空白忽略
+        //  3. 填空格寫法統一：[1]、[__1__]、[ 1 ] 視為同一個空格
+        function normalizeVisibleText(v) {
+            return String(v === null || v === undefined ? '' : v)
+                .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '')
+                .replace(/\[\s*(?:_{1,})?\s*(\d+)\s*(?:_{1,})?\s*\]/g, '[__$1__]')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
         // 去重比對用的文字正規化：全形/半形統一 (NFKC)、連續空白合併、忽略大小寫
         function normalizeDedupText(v) {
-            return String(v === null || v === undefined ? '' : v)
+            return normalizeVisibleText(v)
                 .normalize('NFKC')
                 .replace(/\s+/g, ' ')
                 .trim()
@@ -3070,6 +3195,19 @@
                 normalizeDedupText(q.question),
                 answers.map(normalizeDedupText).filter(Boolean).join('|||')
             ].join('___');
+        }
+
+        // 計算「題目＋答案相同，但位於不同類別/單元」的題數 (僅提示，不刪除)
+        function countCrossUnitDuplicates(list, keyFn) {
+            const groups = new Map();
+            list.forEach(q => {
+                const contentKey = keyFn({ ...q, category: '', subcategory: '' });
+                if (!groups.has(contentKey)) groups.set(contentKey, 0);
+                groups.set(contentKey, groups.get(contentKey) + 1);
+            });
+            let extra = 0;
+            groups.forEach(n => { if (n > 1) extra += n - 1; });
+            return extra;
         }
 
         // 手動清理重複題目
@@ -3092,10 +3230,12 @@
             const removedCount = initialCount - window.questionBank.length;
 
             saveAndRefresh();
+            const crossUnit = countCrossUnitDuplicates(window.questionBank, getQuestionDedupKey);
+            const crossNote = crossUnit > 0 ? `；另有 ${crossUnit} 題與其他類別的題目內容相同（不同類別不視為重複，未刪除）` : '';
             if (removedCount > 0) {
-                showToast(`重複題目清理完畢，共移除 ${removedCount} 題`, 'success');
+                showToast(`重複題目清理完畢，共移除 ${removedCount} 題${crossNote}`, 'success');
             } else {
-                showToast('未發現重複題目', 'info');
+                showToast(`未發現重複題目${crossNote}`, 'info');
             }
         }
 
@@ -3686,6 +3826,7 @@
                 q.options = toStringList(q.options);
                 q.answers = toStringList(q.answers);
                 if (q.answers.length === 0) q.answers = ['(未提供答案)'];
+                if (q.qType === 'FILL' && q.options.length > 0 && q.options.every(isNoOptionMarker)) q.options = [];
                 if (!['SINGLE', 'MULTI', 'FILL'].includes(q.qType)) {
                     const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(q.question) || q.options.length === 0;
                     q.qType = isFill ? 'FILL' : (q.answers.length > 1 ? 'MULTI' : 'SINGLE');
@@ -3904,6 +4045,7 @@
                         html += `
                             <div class="inline-flex items-center rounded-xl text-xs transition ${active ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}">
                                 <button onclick="filterQuizCategory(decodeURIComponent('${safeC}'))" class="px-2.5 py-1 font-semibold">${escapeHtml(c)} (${cnt})</button>
+                                <button onclick="viewQuizUnitQuestions(decodeURIComponent('${safeC}'), 'ALL')" title="查看／編輯此類別的題目" class="px-1 py-1 ${active ? 'text-indigo-100 hover:text-white' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500'}"><i class="fa-regular fa-eye text-[11px]"></i></button>
                                 <button onclick="deleteQuizCategory(decodeURIComponent('${safeC}'))" title="刪除測驗母類別及其所有題目" class="pr-2 pl-0.5 py-1 text-slate-400 dark:text-slate-500 hover:text-rose-400 font-bold">×</button>
                             </div>
                         `;
@@ -3940,6 +4082,7 @@
                                 sHtml += `
                                     <div class="inline-flex items-center rounded-lg text-xs transition ${sActive ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">
                                         <button onclick="filterQuizSubCategory(decodeURIComponent('${safeS}'))" class="px-2 py-0.5 font-semibold">${escapeHtml(s)} (${sCnt})</button>
+                                        <button onclick="viewQuizUnitQuestions(decodeURIComponent('${safeParentCat}'), decodeURIComponent('${safeS}'))" title="查看／編輯此單元的題目" class="px-1 py-0.5 ${sActive ? 'text-indigo-100 hover:text-white' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-500'}"><i class="fa-regular fa-eye text-[11px]"></i></button>
                                         <button onclick="deleteQuizSubCategory(decodeURIComponent('${safeParentCat}'), decodeURIComponent('${safeS}'))" title="刪除此單元全部題目" class="pr-1.5 pl-0.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-300 font-bold">×</button>
                                     </div>
                                 `;
@@ -3970,12 +4113,12 @@
 
         // 測驗題去重鍵：同一母類別/子類別下，題目與答案「完全相同」(僅忽略前後空白；選擇題答案不分順序)
         function getQuizDedupKey(q) {
-            const answers = (q.answers || []).map(a => String(a).trim());
+            const answers = (q.answers || []).map(normalizeVisibleText).filter(Boolean);
             if (q.qType !== 'FILL') answers.sort();
             return [
-                String(q.category || '').trim(),
-                String(q.subcategory || '').trim(),
-                String(q.question || '').trim(),
+                normalizeVisibleText(q.category),
+                normalizeVisibleText(q.subcategory),
+                normalizeVisibleText(q.question),
                 answers.join('\u0001')
             ].join('\u0002');
         }
@@ -3993,11 +4136,19 @@
             const removed = initial - window.quizBank.length;
             localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
             refreshQuizModeUI();
+            const crossUnit = countCrossUnitDuplicates(window.quizBank, getQuizDedupKey);
+            const crossNote = crossUnit > 0 ? `；另有 ${crossUnit} 題與其他單元的題目內容相同（不同單元不視為重複，未刪除）` : '';
             if (removed > 0) {
-                showToast(`測驗題庫去重完畢，共移除 ${removed} 題`, 'success');
+                showToast(`測驗題庫去重完畢，共移除 ${removed} 題${crossNote}`, 'success');
             } else {
-                showToast('測驗題庫未發現重複題目', 'info');
+                showToast(`測驗題庫未發現重複題目${crossNote}`, 'info');
             }
+        }
+
+        // 「選項：無（填空題）」「無」「(填空題)」「N/A」等代表沒有選項的標記
+        function isNoOptionMarker(text) {
+            const t = String(text || '').replace(/\s+/g, '');
+            return /^(?:無|没有|沒有|none|n\/a|na|-)?[\(（]?(?:填空題?|無選項|fill(?:-in)?)?[\)）]?$/i.test(t) && t.length > 0;
         }
 
         // 測驗題庫文字解析 (逐行狀態機，不再以「空行」切題)
@@ -4045,7 +4196,7 @@
                     if (!cur) start();
                     mode = 'OPT';
                     const rest = line.replace(/^選項[：:]\s*/, '').trim();
-                    if (rest) cur.opts.push(rest.replace(optionRe, '').trim());
+                    if (rest && !isNoOptionMarker(rest)) cur.opts.push(rest.replace(optionRe, '').trim());
                     return;
                 }
                 if (ansRe.test(line)) {
@@ -4072,6 +4223,7 @@
                     return;
                 }
                 if (mode === 'OPT') {
+                    if (isNoOptionMarker(line)) return;
                     if (numberRe.test(line)) {
                         start();
                         cur.q.push(line);
