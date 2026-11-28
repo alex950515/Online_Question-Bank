@@ -2494,6 +2494,10 @@
                 });
 
                 let rawText = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+                // 是否為「妖獸 N.」或「Beast N.」題目 (標籤可能在題目文字內，或在題目區塊的其他元素中)
+                const beastRe = /(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?/i;
+                const blockText = (block.textContent || '').replace(/\s+/g, ' ').trim();
+                const isBeast = beastRe.test(rawText.slice(0, 20)) || beastRe.test(blockText.slice(0, 20));
                 rawText = rawText.replace(/^(?:妖獸|Beast)\s*\d+\s*[\.．、:：]?\s*/i, '').trim();
                 if (!rawText) return;
 
@@ -2503,11 +2507,16 @@
                 extracted.push({
                     index: idx + 1,
                     raw: rawText,
-                    norm
+                    norm,
+                    isBeast
                 });
             });
 
-            return extracted;
+            // 從第一個「妖獸 N.」/「Beast N.」題目開始讀取，略過之前的題目 (例如考卷開頭的第一題)
+            const firstBeastIdx = extracted.findIndex(item => item.isBeast);
+            const result = firstBeastIdx > 0 ? extracted.slice(firstBeastIdx) : extracted;
+            result.skippedLeading = firstBeastIdx > 0 ? firstBeastIdx : 0;
+            return result;
         }
 
         function handleHtmlFilterFileUpload(event) {
@@ -2527,7 +2536,8 @@
                     htmlFilterFileName = file.name;
                     updateHtmlFilterUI();
                     performSearch();
-                    showToast(`已讀取「${file.name}」，共解析出 ${parsed.length} 道考卷題目進行篩選！`, 'success');
+                    const skippedNote = parsed.skippedLeading ? `（已略過「妖獸/Beast 1.」之前的 ${parsed.skippedLeading} 題）` : '';
+                    showToast(`已讀取「${file.name}」，共解析出 ${parsed.length} 道考卷題目進行篩選！${skippedNote}`, 'success');
                 } catch (err) {
                     showToast('解析 HTML 檔案失敗：' + err.message, 'error');
                 } finally {
