@@ -3572,6 +3572,7 @@
                 if (overviewBtn) overviewBtn.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-sky-400 text-sky-950 shadow-sm transition flex items-center gap-1.5';
                 if (quizBtn) quizBtn.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-sky-200 hover:text-white transition flex items-center gap-1.5';
             }
+            updateHeaderCountBadge();
             persistUiState();
         }
 
@@ -3693,11 +3694,23 @@
             if (!Array.isArray(window.quizHistory)) window.quizHistory = normalizeFirebaseArray(window.quizHistory);
         }
 
+        // 右上角總題數：題庫總覽顯示總覽題數，測驗模式顯示測驗題庫題數
+        function updateHeaderCountBadge() {
+            const badge = document.getElementById('questionCountBadge');
+            if (!badge) return;
+            if (currentSystemMode === 'quiz') {
+                badge.innerText = `測驗 ${(window.quizBank || []).length} 題`;
+                badge.title = '測驗題庫總題數';
+            } else {
+                badge.innerText = `${(window.questionBank || []).length} 題`;
+                badge.title = '題庫總覽總題數';
+            }
+        }
+
         function saveAndRefresh() {
             sanitizeQuestionBank();
             localStorage.setItem('cloud_question_bank_v6', JSON.stringify(window.questionBank));
-            const badge = document.getElementById('questionCountBadge');
-            if (badge) badge.innerText = `${window.questionBank.length} 題`;
+            updateHeaderCountBadge();
             if (document.getElementById('categoryList')) renderCategories();
             performSearch();
         }
@@ -3862,6 +3875,7 @@
 
         function refreshQuizModeUI() {
             sanitizeQuizBank();
+            updateHeaderCountBadge();
             const totalBadge = document.getElementById('quizBankTotalBadge');
             if (totalBadge) totalBadge.innerText = `測驗庫 ${(window.quizBank || []).length} 題`;
 
