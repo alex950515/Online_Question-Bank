@@ -186,7 +186,7 @@
                     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <i class="fa-solid fa-file-arrow-up text-sky-500 dark:text-sky-400"></i> 題庫匯入
                     </h2>
-                    <span class="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-md font-semibold border border-sky-100 dark:border-sky-800/50">智能文字解析</span>
+                    <span class="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-md font-semibold border border-sky-100 dark:border-sky-800/50">同時匯入總覽與測驗題庫</span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-2.5">
@@ -215,12 +215,18 @@
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">貼上題目文字</label>
-                        <label class="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold cursor-pointer flex items-center gap-1" title="讀取考試結果 .html 檔，自動擷取題目與正確答案並匯入">
-                            <i class="fa-solid fa-file-code"></i> 載入 .html 檔
-                            <input type="file" id="overviewHtmlImportInput" accept=".html,.htm" class="hidden" onchange="handleOverviewHtmlImport(event)">
-                        </label>
+                        <div class="flex items-center gap-2.5">
+                            <label class="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold cursor-pointer flex items-center gap-1" title="載入「題目／選項／正確答案」格式的 .txt 題庫檔並匯入">
+                                <i class="fa-solid fa-folder-open"></i> 載入 .txt 檔
+                                <input type="file" id="overviewTxtImportInput" accept=".txt" class="hidden" onchange="handleOverviewTxtImport(event)">
+                            </label>
+                            <label class="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold cursor-pointer flex items-center gap-1" title="讀取考試結果 .html 檔，自動擷取題目與正確答案並匯入">
+                                <i class="fa-solid fa-file-code"></i> 載入 .html 檔
+                                <input type="file" id="overviewHtmlImportInput" accept=".html,.htm" class="hidden" onchange="handleOverviewHtmlImport(event)">
+                            </label>
+                        </div>
                     </div>
-                    <textarea id="importTextarea" rows="5" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="支援貼上考試成績單或純題目格式，系統將自動過濾個人作答與得分並匯入..."></textarea>
+                    <textarea id="importTextarea" rows="5" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-400/50 focus:border-sky-500 transition outline-none font-mono leading-relaxed" placeholder="貼上「題目：／選項：／正確答案：」格式（亦支援考試成績單），匯入後同時加入：&#10;・題庫總覽：題目與正確答案&#10;・測驗題庫：題目、選項與正確答案"></textarea>
                 </div>
 
                 <div class="flex flex-wrap gap-2 pt-1">
@@ -407,52 +413,21 @@
         <!-- 左側：獨立測驗題庫匯入與分類篩選 -->
         <section class="lg:col-span-1 space-y-5 lg:overflow-y-auto lg:max-h-full lg:pr-1.5">
             
-            <!-- 1. 測驗題庫獨立匯入面板 -->
-            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+            <!-- 1. 測驗題庫管理 (匯入統一在題庫總覽進行) -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                     <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <i class="fa-solid fa-file-import text-indigo-500 dark:text-indigo-400"></i> 測驗題庫匯入
+                        <i class="fa-solid fa-box-archive text-indigo-500 dark:text-indigo-400"></i> 測驗題庫
                     </h2>
-                    <span class="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-semibold border border-indigo-100 dark:border-indigo-800/50">獨立題庫 · 含選項解析</span>
+                    <span class="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-semibold border border-indigo-100 dark:border-indigo-800/50">含選項 · 獨立管理</span>
                 </div>
-
-                <div class="grid grid-cols-2 gap-2.5">
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">母類別名稱</label>
-                        <div class="relative group">
-                            <input type="text" id="quizCategoryNameInput" list="quizCategoriesDatalist" oninput="updateQuizSubCategoryDatalist()" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none" placeholder="輸入母類別名稱">
-                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center">
-                                <i class="fa-solid fa-chevron-down"></i>
-                            </div>
-                        </div>
-                        <datalist id="quizCategoriesDatalist"></datalist>
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">子類別名稱 (單元)</label>
-                        <div class="relative group">
-                            <input type="text" id="quizSubCategoryNameInput" list="quizSubCategoriesDatalist" class="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none" placeholder="輸入單元名稱">
-                            <div class="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-slate-500 text-[10px] w-5 h-5 rounded-lg bg-slate-200/50 dark:bg-slate-700/50 flex items-center justify-center">
-                                <i class="fa-solid fa-chevron-down"></i>
-                            </div>
-                        </div>
-                        <datalist id="quizSubCategoriesDatalist"></datalist>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">貼上題目或上傳 .txt 題庫檔</label>
-                        <label class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-semibold cursor-pointer flex items-center gap-1">
-                            <i class="fa-solid fa-folder-open"></i> 載入 .txt 檔
-                            <input type="file" id="quizTxtFileInput" accept=".txt" class="hidden" onchange="handleQuizTxtFileUpload(event)">
-                        </label>
-                    </div>
-                    <textarea id="quizImportTextarea" rows="6" class="w-full p-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-500 transition outline-none font-mono leading-relaxed" placeholder="支援貼上包含「題目：、選項：A. B. C. D.、正確答案：」或填空題 [__1__] 之格式，亦可直接點擊右上角載入 .txt 檔案..."></textarea>
-                </div>
-
-                <div class="flex flex-wrap gap-2 pt-1">
-                    <button onclick="parseAndImportQuizBank()" class="flex-1 bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-plus"></i> 匯入測驗題庫
+                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    題目統一在「題庫總覽」匯入，會同時加入測驗題庫（含選項）。<br>
+                    此處的刪除、編輯、去重只影響測驗題庫，不會改動題庫總覽。
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="switchSystemMode('overview')" class="flex-1 bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white text-xs py-2 px-3 rounded-xl font-bold shadow-sm hover:shadow transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-file-import"></i> 前往題庫總覽匯入
                     </button>
                     <button onclick="removeDuplicateQuizQuestions()" class="bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-600 dark:hover:text-amber-400 text-slate-600 dark:text-slate-300 text-xs py-2 px-2.5 rounded-xl font-medium transition" title="移除題目與答案完全相同的重複測驗題">
                         去重
@@ -1052,7 +1027,7 @@
                             : 'bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-700 hover:to-sky-600 text-white cursor-pointer'
                         }">
                             <i class="fa-solid fa-play"></i>
-                            <span>${pool.length === 0 ? '請先於左側匯入測驗題目' : '開始測驗'}</span>
+                            <span>${pool.length === 0 ? '尚無測驗題目，請至「題庫總覽」匯入' : '開始測驗'}</span>
                         </button>
                     </div>
                 </div>
@@ -1859,178 +1834,18 @@
 - 專用測驗成績過濾解析演算法（支援無題目開頭、同行混排成績單格式）
          */
         function parseAndImportText() {
-            const rawText = document.getElementById('importTextarea').value.trim();
-            const category = document.getElementById('categoryNameInput').value.trim() || '未分類';
-            const subcategory = document.getElementById('subCategoryNameInput').value.trim() || '';
-
+            const textarea = document.getElementById('importTextarea');
+            const rawText = textarea.value.trim();
             if (!rawText) {
                 showToast('請先輸入題目內容！', 'error');
                 return;
             }
-
-            let processed = rawText
-                .replace(/題目[：:]/g, '\n[KEY_QUESTION]\n')
-                .replace(/你的答案[：:]/g, '\n[KEY_YOUR_ANS]\n')
-                .replace(/正確答案[：:]/g, '\n[KEY_CORRECT_ANS]\n')
-                .replace(/得分[：:]/g, '\n[KEY_SCORE]\n');
-
-            const lines = processed.split('\n');
-
-            const parsedQuestions = [];
-            let currentQ = null;
-            let currentMode = 'NONE';
-
-            function finalizeQ() {
-                if (!currentQ) return;
-                
-                let qText = currentQ.questionLines.join('\n').trim();
-                qText = qText.replace(/^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)\s*/, '').trim();
-
-                let ansList = [];
-                let rawAnsBlock = currentQ.answerLines.join('\n').trim();
-                if (rawAnsBlock) {
-                    const linesAns = rawAnsBlock.split('\n').map(a => a.trim()).filter(a => a.length > 0);
-                    linesAns.forEach(a => {
-                        const cleaned = a.replace(/^(正確答案[：:]|答[：:]|答案[：:])\s*/i, '').trim();
-                        if (cleaned) ansList.push(cleaned);
-                    });
-                }
-
-                if (qText) {
-                    currentQ.question = qText;
-                    currentQ.answers = ansList.length > 0 ? ansList : ['(未提供正確答案)'];
-                    parsedQuestions.push({
-                        id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 100000) + '_' + parsedQuestions.length,
-                        type: '一般題',
-                        category: category,
-                        subcategory: subcategory,
-                        question: currentQ.question,
-                        answers: currentQ.answers,
-                        image: ''
-                    });
-                }
-                currentQ = null;
-                currentMode = 'NONE';
-            }
-
-            function createNewQ() {
-                finalizeQ();
-                currentQ = {
-                    questionLines: [],
-                    answerLines: []
-                };
-                currentMode = 'QUESTION';
-            }
-
-            for (let i = 0; i < lines.length; i++) {
-                let line = lines[i].trim();
-                if (!line) continue;
-
-                if (line === '[KEY_QUESTION]') {
-                    createNewQ();
-                    continue;
-                }
-
-                if (line === '[KEY_YOUR_ANS]') {
-                    currentMode = 'YOUR_ANS';
-                    continue;
-                }
-
-                if (line === '[KEY_CORRECT_ANS]') {
-                    currentMode = 'CORRECT_ANS';
-                    continue;
-                }
-
-                if (line === '[KEY_SCORE]') {
-                    currentMode = 'SCORE';
-                    continue;
-                }
-
-                if (currentMode === 'SCORE') {
-                    let scoreMatch = line.match(/^(\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?|\d+)(.*)/);
-                    if (scoreMatch) {
-                        let remaining = (scoreMatch[4] || '').trim();
-                        if (remaining) {
-                            createNewQ();
-                            currentQ.questionLines.push(remaining);
-                        } else {
-                            currentMode = 'AFTER_SCORE';
-                        }
-                        continue;
-                    } else {
-                        createNewQ();
-                        currentQ.questionLines.push(line);
-                        continue;
-                    }
-                }
-
-                if (currentMode === 'AFTER_SCORE') {
-                    createNewQ();
-                    currentQ.questionLines.push(line);
-                    continue;
-                }
-
-                if (currentMode === 'NONE') {
-                    createNewQ();
-                    currentQ.questionLines.push(line);
-                    continue;
-                }
-
-                if (currentMode === 'QUESTION') {
-                    const isNumberedHeader = /^(題目[：:]|\d+[\.、\)]|[\(（]\d+[\)）]|\[\d+\]|第\d+題[：:]?)/i.test(line);
-                    if (isNumberedHeader && currentQ.questionLines.length > 0) {
-                        createNewQ();
-                    }
-                    currentQ.questionLines.push(line);
-                    continue;
-                }
-
-                if (currentMode === 'YOUR_ANS') {
-                    continue;
-                }
-
-                if (currentMode === 'CORRECT_ANS') {
-                    // 純題號格式：答案後出現「2. 」「(3)」「第4題」等新題號時，視為下一題開始 (避免 3.14 這類數字答案被誤判)
-                    if (/^(\d+[\.、\)](?!\d)|[\(（]\d+[\)）]|第\d+題)/.test(line)) {
-                        createNewQ();
-                        currentQ.questionLines.push(line);
-                        continue;
-                    }
-                    currentQ.answerLines.push(line);
-                    continue;
-                }
-            }
-
-            finalizeQ();
-
-            if (parsedQuestions.length === 0) {
-                showToast('解析失敗：未偵測到有效題目。', 'error');
-                return;
-            }
-
-            let newAddedCount = 0;
-            let duplicateCount = 0;
-
-            parsedQuestions.forEach(newQ => {
-                const newKey = getQuestionDedupKey(newQ);
-                const isDuplicate = window.questionBank.some(existQ => getQuestionDedupKey(existQ) === newKey);
-
-                if (isDuplicate) {
-                    duplicateCount++;
-                } else {
-                    window.questionBank.push(newQ);
-                    newAddedCount++;
-                }
-            });
-
-            document.getElementById('importTextarea').value = '';
-            saveAndRefresh();
-
-            if (duplicateCount > 0) {
-                showToast(`成功匯入 ${newAddedCount} 題（已自動跳過 ${duplicateCount} 題完全重複項目）`, 'success');
-            } else {
-                showToast(`成功匯入 ${newAddedCount} 道題目！`, 'success');
-            }
+            const stats = importQuestionText(
+                rawText,
+                document.getElementById('categoryNameInput').value,
+                document.getElementById('subCategoryNameInput').value
+            );
+            if (stats) textarea.value = '';
         }
 
         // 從考試結果 .html 擷取「題目」與「正確答案」(忽略你的答案、得分)，轉為匯入用文字格式
@@ -2077,10 +1892,13 @@
                     }
                     const noAnswer = items.filter(it => it.answers.length === 0).length;
                     const text = items.map(it =>
-                        `題目：${it.question}\n正確答案：\n${it.answers.join('\n')}`
-                    ).join('\n');
-                    document.getElementById('importTextarea').value = text;
-                    parseAndImportText();
+                        `題目：${it.question}\n正確答案：\n${(it.answers.length ? it.answers : ['(未提供正確答案)']).join('\n')}`
+                    ).join('\n\n');
+                    importQuestionText(
+                        text,
+                        document.getElementById('categoryNameInput').value,
+                        document.getElementById('subCategoryNameInput').value
+                    );
                     if (noAnswer > 0) {
                         showToast(`注意：「${file.name}」有 ${noAnswer} 題未顯示正確答案，已標記為「(未提供正確答案)」`, 'info');
                     }
@@ -4099,18 +3917,6 @@
             renderQuizWorkspace();
         }
 
-        function handleQuizTxtFileUpload(event) {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const ta = document.getElementById('quizImportTextarea');
-                if (ta) ta.value = e.target.result || '';
-                showToast(`已載入檔案「${file.name}」`, 'info');
-            };
-            reader.readAsText(file);
-        }
-
         // 測驗題去重鍵：同一母類別/子類別下，題目與答案「完全相同」(僅忽略前後空白；選擇題答案不分順序)
         function getQuizDedupKey(q) {
             const answers = (q.answers || []).map(normalizeVisibleText).filter(Boolean);
@@ -4164,6 +3970,12 @@
             let mode = 'Q';
             let blankAfterAns = false;
 
+            // 成績單格式常見同一行混排 (例：「得分：5/5題目：…」)，先把標記拆成獨立行
+            raw = String(raw || '')
+                .replace(/^\uFEFF/, '')
+                .replace(/(你的答案|正確答案|得分)\s*[：:]/g, '\n$1：')
+                .replace(/(\d)\s*(題目\s*[：:])/g, '$1\n$2');
+
             const finish = () => {
                 if (!cur) return;
                 const fullText = cur.q.join('\n').replace(/^題目[：:]\s*/, '').trim();
@@ -4172,13 +3984,13 @@
                 const qText = /[一-龥a-zA-Z0-9]/.test(strippedText) ? strippedText : fullText;
                 const hasContent = cur.q.length || cur.opts.length || cur.ans.length;
                 if (qText && cur.ans.length > 0) {
-                    results.push({ question: qText, options: cur.opts, answers: cur.ans });
+                    results.push({ question: qText, options: cur.opts, answers: cur.ans, noOptionMarker: cur.noOpt });
                 } else if (hasContent) {
                     skipped.push((qText || cur.opts[0] || cur.ans[0] || '').slice(0, 30));
                 }
                 cur = null;
             };
-            const start = () => { finish(); cur = { q: [], opts: [], ans: [] }; mode = 'Q'; blankAfterAns = false; };
+            const start = () => { finish(); cur = { q: [], opts: [], ans: [], noOpt: false }; mode = 'Q'; blankAfterAns = false; };
 
             raw.split(/\r?\n/).forEach(rawLine => {
                 const line = rawLine.trim();
@@ -4196,7 +4008,21 @@
                     if (!cur) start();
                     mode = 'OPT';
                     const rest = line.replace(/^選項[：:]\s*/, '').trim();
-                    if (rest && !isNoOptionMarker(rest)) cur.opts.push(rest.replace(optionRe, '').trim());
+                    if (rest && isNoOptionMarker(rest)) cur.noOpt = true;
+                    else if (rest) cur.opts.push(rest.replace(optionRe, '').trim());
+                    return;
+                }
+                // 成績單的「你的答案」：忽略到下一個標記為止
+                if (/^你的答案[：:]/.test(line)) {
+                    if (!cur) start();
+                    mode = 'YOUR';
+                    return;
+                }
+                // 成績單的「得分」：該題結束，同一行若還有文字則為下一題
+                if (/^得分[：:]/.test(line)) {
+                    const rest = line.replace(/^得分[：:]\s*/, '').replace(/^\d+(?:\.\d+)?\s*(?:\/\s*\d+(?:\.\d+)?)?\s*(?:分)?/, '').trim();
+                    if (cur) mode = 'SCORE';
+                    if (rest) { start(); cur.q.push(rest); }
                     return;
                 }
                 if (ansRe.test(line)) {
@@ -4205,6 +4031,12 @@
                     blankAfterAns = false;
                     const rest = line.replace(ansRe, '').trim();
                     if (rest) cur.ans.push(rest);
+                    return;
+                }
+                if (mode === 'YOUR') return;
+                if (mode === 'SCORE') {
+                    start();
+                    cur.q.push(line);
                     return;
                 }
                 if (mode === 'ANS') {
@@ -4262,62 +4094,112 @@
             return { results, skipped };
         }
 
-        function parseAndImportQuizBank() {
-            const ta = document.getElementById('quizImportTextarea');
-            const raw = ta ? ta.value.trim() : '';
-            const category = (document.getElementById('quizCategoryNameInput')?.value || '').trim() || '未分類';
-            const subcategory = (document.getElementById('quizSubCategoryNameInput')?.value || '').trim() || '';
+        // ===== 統一匯入 (只在題庫總覽進行) =====
+        // 同一份內容同時寫入兩個題庫：
+        //   題庫總覽 → 只保存「題目 + 正確答案」
+        //   測驗題庫 → 保存「題目 + 選項 + 正確答案」(沒有選項的選擇題無法作答，不加入測驗題庫)
+        // 兩個題庫各自去重、各自管理，刪除互不影響
+        function isFillQuestionText(text) {
+            return /\[\s*(?:__)?\s*\d+\s*(?:__)?\s*\]/.test(text) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(text);
+        }
 
-            if (!raw) {
-                showToast('請先貼上或載入測驗題庫內容！', 'error');
-                return;
-            }
-
+        function importQuestionText(raw, category, subcategory) {
+            category = (category || '').trim() || '未分類';
+            subcategory = (subcategory || '').trim();
+            sanitizeQuestionBank();
             sanitizeQuizBank();
+
             const { results, skipped } = parseQuizBankText(raw);
             if (results.length === 0) {
-                showToast('未解析出有效題目 (每題都需要「正確答案：」)，請檢查格式！', 'error');
-                return;
+                showToast('解析失敗：未偵測到有效題目（每題需有「題目」與「正確答案」）', 'error');
+                return null;
             }
 
-            const existingKeys = new Set(window.quizBank.map(getQuizDedupKey));
-            const imported = [];
-            let duplicateCount = 0;
-            results.forEach((r, bIdx) => {
-                const isFill = /\[\s*(?:__)?\d+(?:__)?\s*\]/.test(r.question) || /[\(（]\s*(?:請用小寫英文回答|Please\s+answer)/i.test(r.question) || r.options.length === 0;
-                const qType = isFill ? 'FILL' : (r.answers.length > 1 ? 'MULTI' : 'SINGLE');
-                const item = {
-                    id: 'qz_' + Date.now() + '_' + bIdx + '_' + Math.floor(Math.random() * 10000),
+            const overviewKeys = new Set(window.questionBank.map(getQuestionDedupKey));
+            const quizKeys = new Set(window.quizBank.map(getQuizDedupKey));
+            const stats = { overviewAdded: 0, overviewDup: 0, quizAdded: 0, quizDup: 0, noOptions: 0, skipped: skipped.length };
+            const stamp = Date.now();
+
+            results.forEach((r, i) => {
+                // 題庫總覽：題目 + 正確答案
+                const ov = {
+                    id: 'q_' + stamp + '_' + i + '_' + Math.floor(Math.random() * 100000),
+                    type: '一般題',
                     category,
                     subcategory,
-                    qType,
+                    question: r.question,
+                    answers: r.answers.length ? r.answers : ['(未提供正確答案)'],
+                    image: ''
+                };
+                const ovKey = getQuestionDedupKey(ov);
+                if (overviewKeys.has(ovKey)) {
+                    stats.overviewDup++;
+                } else {
+                    overviewKeys.add(ovKey);
+                    window.questionBank.push(ov);
+                    stats.overviewAdded++;
+                }
+
+                // 測驗題庫：題目 + 選項 + 正確答案
+                const isFill = r.options.length === 0 && (r.noOptionMarker || isFillQuestionText(r.question));
+                if (r.options.length === 0 && !isFill) {
+                    stats.noOptions++;
+                    return;
+                }
+                const qz = {
+                    id: 'qz_' + stamp + '_' + i + '_' + Math.floor(Math.random() * 100000),
+                    category,
+                    subcategory,
+                    qType: isFill || isFillQuestionText(r.question) && r.options.length === 0 ? 'FILL' : (r.answers.length > 1 ? 'MULTI' : 'SINGLE'),
                     question: r.question,
                     options: r.options,
                     answers: r.answers
                 };
-                const key = getQuizDedupKey(item);
-                if (existingKeys.has(key)) {
-                    duplicateCount++;
-                    return;
+                const qzKey = getQuizDedupKey(qz);
+                if (quizKeys.has(qzKey)) {
+                    stats.quizDup++;
+                } else {
+                    quizKeys.add(qzKey);
+                    window.quizBank.push(qz);
+                    stats.quizAdded++;
                 }
-                existingKeys.add(key);
-                imported.push(item);
             });
 
-            window.quizBank = [...window.quizBank, ...imported];
             localStorage.setItem('independent_quiz_bank_v1', JSON.stringify(window.quizBank));
-            if (ta) ta.value = '';
+            saveAndRefresh();
             refreshQuizModeUI();
 
-            let msg = `成功匯入 ${imported.length} 題至測驗題庫`;
+            let msg = `匯入完成：題庫總覽新增 ${stats.overviewAdded} 題、測驗題庫新增 ${stats.quizAdded} 題`;
             const notes = [];
-            if (duplicateCount > 0) notes.push(`跳過重複 ${duplicateCount} 題`);
-            if (skipped.length > 0) notes.push(`略過無答案段落 ${skipped.length} 段`);
+            if (stats.overviewDup > 0) notes.push(`總覽跳過重複 ${stats.overviewDup} 題`);
+            if (stats.quizDup > 0) notes.push(`測驗跳過重複 ${stats.quizDup} 題`);
+            if (stats.noOptions > 0) notes.push(`${stats.noOptions} 題沒有選項，未加入測驗題庫`);
+            if (stats.skipped > 0) notes.push(`略過無答案段落 ${stats.skipped} 段`);
             if (notes.length) msg += `（${notes.join('、')}）`;
             showToast(msg, 'success');
-            if (skipped.length > 0) {
-                console.info('[測驗匯入] 以下段落沒有「正確答案：」，未匯入：', skipped);
-            }
+            if (skipped.length > 0) console.info('[匯入] 以下段落沒有「正確答案：」，未匯入：', skipped);
+            return stats;
+        }
+
+        // 載入 .txt 題庫檔並直接匯入
+        function handleOverviewTxtImport(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    importQuestionText(
+                        e.target.result || '',
+                        document.getElementById('categoryNameInput').value,
+                        document.getElementById('subCategoryNameInput').value
+                    );
+                } catch (err) {
+                    showToast('讀取 .txt 檔失敗：' + err.message, 'error');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
         }
 
         function clearQuizBank() {
